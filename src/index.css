@@ -1,0 +1,125 @@
+/* Praxis design tokens.
+   Near-white surfaces, ink text, blue primary, teal + terracotta accents.
+   Figtree everywhere; monospace only for figures, times and counts.
+   Product rules enforced here: 40px minimum control height; "not current"
+   is a quieter surface, never dimmed text. */
+
+:root {
+  --font-ui: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* surfaces */
+  --surface-0: #fbfbfa; /* page */
+  --surface-1: #ffffff; /* cards */
+  --surface-2: #f2f2ef; /* quiet / not-current */
+  --surface-3: #e8e8e3; /* pressed, wells */
+  --line: #dcdcd6;
+  --line-strong: #b9b9b1;
+
+  /* ink */
+  --ink: #16181d;
+  --ink-2: #3a3d45;
+  --ink-3: #6b6f78;
+
+  /* primary blue ramp (overridden at runtime by logo colour extraction) */
+  --primary-100: #e3edfb;
+  --primary-200: #c2d6f5;
+  --primary-300: #93b5ec;
+  --primary-400: #5d90e0;
+  --primary-500: #1f5fbf;
+  --primary-600: #1a4fa0;
+  --primary-700: #163f80;
+  --primary-800: #113062;
+  --primary-900: #0c2247;
+  --primary: var(--primary-500);
+  --on-primary: #ffffff;
+
+  /* accents */
+  --teal-100: #dcf3f0;
+  --teal-500: #178f83;
+  --teal-700: #0f6259;
+  --terracotta-100: #fbe6df;
+  --terracotta-500: #c9573a;
+  --terracotta-700: #93402a;
+  --brass-500: #a8812e;
+  --sage-500: #6a8f5f;
+
+  /* status */
+  --ok: var(--teal-500);
+  --warn: #b7791f;
+  --danger: var(--terracotta-500);
+
+  /* geometry */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --control-h: 40px; /* minimum control height, everywhere */
+  --rail-w: 56px;
+  --shadow-1: 0 1px 2px rgb(22 24 29 / 0.06), 0 1px 1px rgb(22 24 29 / 0.04);
+  --shadow-2: 0 4px 16px rgb(22 24 29 / 0.1), 0 1px 3px rgb(22 24 29 / 0.06);
+  --focus: 0 0 0 3px var(--primary-200);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--surface-0);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  min-height: var(--control-h);
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  min-height: var(--control-h);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
