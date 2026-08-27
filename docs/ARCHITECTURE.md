@@ -57,7 +57,7 @@ than losing the session.
 1. No modal dialogs. Drill-in is a drawer, small choices are popovers, the establish flow is
    a strip on the canvas.
 2. One shift selector in the whole app.
-3. Never dim text to show "not current" — use a quieter surface (`--surface-2`).
+3. Never dim text to show "not current" — use a quieter surface (`--color-neutral-200`).
 4. Status never relies on colour alone — every state carries a glyph.
 5. 40 px minimum control height, everywhere (`--control-h`).
 6. Every action prints its keyboard shortcut (`lib/shortcuts.ts` → `label()`).
@@ -68,8 +68,8 @@ than losing the session.
 The prototype's dominant defect class was a fixed-height or sticky element overlaying or
 squeezing the plan canvas. The rebuilt shell holds this structurally:
 
-- The shell is a CSS grid that fills `100dvh` exactly; each surface owns its own scroller.
-- Chrome reserves space (it is a grid row), it is never `position: sticky`.
+- The shell fills `100dvh` exactly; the hotel body is the ONE scroller.
+- Chrome reserves space as a flex row; nothing is `position: sticky`.
 - The plan pane fits its scroller with zero internal scroll: `scroller.clientHeight ===
   scroller.scrollHeight`. `npm run screens` asserts this at 1440 px and 540 px viewports
   and writes review screenshots to `screens/`.
