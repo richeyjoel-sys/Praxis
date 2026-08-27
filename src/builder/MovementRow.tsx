@@ -77,10 +77,9 @@ function Cascade({ x, m }: { x: Move; sh: Shift; m: Model }) {
   const hotel = m.hotel()
 
   const Head = ({ i, children }: { i: number; children: string }) => (
-    <button className={s.stepHead} data-open={isOpen(i) ? 'true' : undefined} onClick={() => A.toggleStep(k, i, isOpen(i))} aria-expanded={isOpen(i)}>
-      <Chevron open={isOpen(i)} size={13} weight={3} />
+    <StepHead open={isOpen(i)} onToggle={() => A.toggleStep(k, i, isOpen(i))}>
       {children}
-    </button>
+    </StepHead>
   )
 
   return (
@@ -255,5 +254,14 @@ function Cascade({ x, m }: { x: Move; sh: Shift; m: Model }) {
         </div>
       )}
     </div>
+  )
+}
+
+function StepHead({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: string }) {
+  return (
+    <button className={s.stepHead} data-open={open ? 'true' : undefined} onClick={onToggle} aria-expanded={open}>
+      <Chevron open={open} size={13} weight={3} />
+      {children}
+    </button>
   )
 }

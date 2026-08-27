@@ -345,11 +345,6 @@ export function FlowPlanner() {
 function PlanTools({ planRef }: { planRef: React.RefObject<PlanCanvasHandle | null> }) {
   const m = useModel()
   const cur = m.ui.ptl
-  const T = ({ icon, hex, title, on, onClick }: { icon: string; hex: string; title: string; on: boolean; onClick: () => void }) => (
-    <button className={s.tool} style={{ background: on ? hex : hex + '1f', color: on ? '#fff' : hex }} title={title} onClick={onClick} aria-pressed={on}>
-      <Glyph icon={icon} size={17} />
-    </button>
-  )
   const setTool = (id: 'select' | 'trace' | 'cal') => {
     A.setPlanTool(id)
     planRef.current?.clearTool()
@@ -371,5 +366,13 @@ function PlanTools({ planRef }: { planRef: React.RefObject<PlanCanvasHandle | nu
         Fit
       </button>
     </>
+  )
+}
+
+function T({ icon, hex, title, on, onClick }: { icon: string; hex: string; title: string; on: boolean; onClick: () => void }) {
+  return (
+    <button className={s.tool} style={{ background: on ? hex : hex + '1f', color: on ? '#fff' : hex }} title={title} onClick={onClick} aria-pressed={on}>
+      <Glyph icon={icon} size={17} />
+    </button>
   )
 }

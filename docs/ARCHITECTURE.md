@@ -15,15 +15,28 @@ Anything the Schedule builder settles appears in the Flow planner without being 
 | `state/` | The one state tree, `mutate()`/undo, persistence | `Praxis.dc.html` React class |
 | `builder/` | Schedule builder: shift cards, roles, captains, movements, six-step cascade | `Praxis.dc.html` |
 | `studio/` | Setup studio (Activities, Roles, Transport, Signage), Event & dates, logo colour extraction | `Praxis.dc.html` |
-| `planner/plan/` | Plan mode: SVG drafting, trace, calibrate, establish flow, OSM pull | `praxis-plan.js` |
-| `planner/live/` | Go live: three.js model, camera presets, layers, clock bar | `praxis-3d.js` |
+| `planner/` | Planner chrome (modes, drawers, tools, finder, upload, clock bar), `buildScene.ts` (the Scene contract both surfaces read), `readPlan.ts` (PDF/image underlay) | `Praxis.dc.html` |
+| `planner/plan/` | Plan mode: `PlanSurface` — SVG drafting, trace, calibrate, establish flow, OSM pull | `praxis-plan.js` |
+| `planner/live/` | Go live: `LiveModel` — three.js model, camera presets, layers, overlays | `praxis-3d.js` |
 | `sim/` | Deterministic simulation `build(plan).at(T)` — pure, no DOM, unit-tested | `praxis-sim.js` |
 | `data/` | Event data: hotels, dates, activity groups (generated from the Mucho Matrix workbook), geo, known floor plans, scene defaults | `praxis-data.js`, `praxis-geo.js`, `praxis-plans.js`, `praxis-scene.js` |
 | `ui/` | Shared controls: buttons, steppers, chips, popover, drawer | — |
 | `lib/` | Small pure helpers: shortcuts, units, colour, ids | — |
 
-`scripts/build-data.mjs` regenerates `src/data/groups.generated.ts` from the spreadsheet so
-the data module is reproducible rather than a hand-carried blob.
+`scripts/import-prototype-data.mjs` regenerates `src/data/matrix.generated.ts` from the
+prototype's `praxis-data.js`; `scripts/build-data.mjs` (to write, once the Mucho Matrix
+workbook is in the repo) will rebuild it from the spreadsheet so the data module is
+reproducible rather than a hand-carried blob.
+
+## The Scene contract
+
+`buildScene(model)` produces the one object both view surfaces read every frame — the sim
+plan, the placed and derived objects, layers, selection, the plan tool — and the callbacks
+they write back through (`onRoom`, `onItem`, `onPlace`, `onTrace`, `onCalibrate`,
+`onEstablish`, …). Every callback dispatches a named action in `state/actions.ts`. The
+surfaces own nothing but the view: `PlanSurface` and `LiveModel` are imperative classes
+mounted by thin React wrappers (`PlanCanvas`, `LiveCanvas`) that hand them a `getScene()`
+getter, so a re-render never remounts a canvas.
 
 ## State
 
@@ -58,7 +71,8 @@ squeezing the plan canvas. The rebuilt shell holds this structurally:
 - The shell is a CSS grid that fills `100dvh` exactly; each surface owns its own scroller.
 - Chrome reserves space (it is a grid row), it is never `position: sticky`.
 - The plan pane fits its scroller with zero internal scroll: `scroller.clientHeight ===
-  scroller.scrollHeight`. This is asserted in a test at a 540 px viewport.
+  scroller.scrollHeight`. `npm run screens` asserts this at 1440 px and 540 px viewports
+  and writes review screenshots to `screens/`.
 
 ## Service worker
 
@@ -73,3 +87,18 @@ was on screen. OSM tiles are the exception (cache-first, 30 days).
 - Coach capacity 48 seats.
 - Only Hilton Bayfront has real space names; the other eight hotels are placeholders.
 - Wall height is fixed at 3.15 m until the "how tall are the walls" step is built.
+
+## Dropped from the prototype
+
+Two things present in the prototype's script but unreachable from its UI were not ported:
+a per-zone "canvas" placement mode (superseded by Plan mode) and a "Fleet" tab (its
+numbers live in the movement rows and the header stats).
+
+## Fixed during the port
+
+- The Plan surface's overlay was rebuilt every 400 ms, discarding text typed into the
+  calibrate and rename inputs. It now skips the rebuild while one of its inputs has focus.
+- Right-click on the plan hit-tested the event target, which the redraw could invalidate;
+  it now hit-tests by position.
+- The sim's queue-head offset depended on screen pixels-per-metre; it is now a fixed
+  1.6 m (0.6 m on the kerb and street), so the simulation is the same at every zoom.

@@ -157,9 +157,19 @@ const isFrameKey = (k: string | null): k is keyof Frame =>
   k === 'w' || k === 'd' || k === 'road' || k === 'drive' || k === 'bays'
 type Step = 'start' | 'read' | 'map' | 'frame' | null
 
+// the SVG is rebuilt on every draw, so hit-test by position rather than by
+// the (possibly stale or capture-retargeted) event target
 const hitOf = (e: Event): Element | null => {
   const t = e.target
-  return t instanceof Element ? t.closest('[data-h]') : null
+  const byTarget = t instanceof Element ? t.closest('[data-h]') : null
+  if (byTarget) return byTarget
+  if (e instanceof MouseEvent) {
+    for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+      const h = el.closest('[data-h]')
+      if (h) return h
+    }
+  }
+  return null
 }
 
 const STYLE = `
@@ -466,6 +476,7 @@ export class PlanSurface {
     this.svg.addEventListener('pointerdown', (e) => {
       const s = this.S()
       if (!s || !this.cam) return
+      if (e.button === 2) return // right-click is the menu, handled on contextmenu
       const p = this.at(e)
       const hit = hitOf(e)
       const kind = hit && hit.getAttribute('data-h')
@@ -1044,7 +1055,14 @@ export class PlanSurface {
   }
 
   // ---- overlay chrome ----
+  /** True while the planner is typing into one of the overlay's inputs — the
+   *  overlay must not be rebuilt under them by the redraw tick. */
+  private typing(): boolean {
+    const a = document.activeElement
+    return !!a && this.ui.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')
+  }
   private chrome(s: Scene, K: number, c: Palette, CL: ClassMap): void {
+    if (this.typing()) return
     const sel = (s.items || []).find((x) => x.id === s.itemPick)
     const barM = K > 22 ? 5 : K > 9 ? 10 : 25
     const barPx = barM * K
@@ -1212,6 +1230,7 @@ export class PlanSurface {
 
   // ---- the establish flow: nothing is drawn until the site is real ----
   private setup(s: Scene): void {
+    if (this.typing()) return
     const step: 'start' | 'read' | 'map' | 'frame' = this._step || 'start'
     const c = C()
     this.svg.innerHTML = `<rect width="100%" height="100%" fill="${c.n200}"/>

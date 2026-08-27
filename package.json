@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b",
     "lint": "oxlint src",
-    "data:build": "node scripts/build-data.mjs"
+    "screens": "node scripts/screens.mjs"
   },
   "dependencies": {
     "immer": "^10.1.1",

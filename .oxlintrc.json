@@ -2,6 +2,6 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "unicorn"],
   "categories": { "correctness": "error", "suspicious": "warn" },
-  "rules": { "no-unused-vars": "warn" },
-  "ignorePatterns": ["dist", "prototype", "node_modules"]
+  "rules": { "no-unused-vars": "warn", "react/react-in-jsx-scope": "off" },
+  "ignorePatterns": ["dist", "prototype", "node_modules", "scripts"]
 }

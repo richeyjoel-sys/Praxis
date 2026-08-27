@@ -20,7 +20,8 @@ npm run typecheck  # TypeScript, strict
 npm run lint       # oxlint
 npm run build      # production build → dist/ (installable PWA)
 npm run preview    # serve dist/ locally
-npm run data:build # regenerate src/data/groups.generated.ts from the Mucho Matrix workbook
+npm run screens    # screenshots + the layout invariant (needs `npm i -D playwright && npx playwright install chromium`)
+node scripts/import-prototype-data.mjs   # regenerate src/data/matrix.generated.ts from prototype/praxis-data.js
 ```
 
 ## Layout
