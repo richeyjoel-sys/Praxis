@@ -1,63 +1,62 @@
 /* Praxis design tokens.
-   Near-white surfaces, ink text, blue primary, teal + terracotta accents.
-   Figtree everywhere; monospace only for figures, times and counts.
+   Cool, near-white chrome — the colour in this app belongs to the activities,
+   not the surfaces. Figtree everywhere; monospace only for figures.
+   Token names follow the prototype (Organic system) so the runtime theme
+   ramp (applyTheme) and the two view surfaces share one vocabulary.
    Product rules enforced here: 40px minimum control height; "not current"
    is a quieter surface, never dimmed text. */
 
 :root {
-  --font-ui: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-heading: 'Caprasimo', 'Figtree', system-ui, sans-serif;
+  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* surfaces */
-  --surface-0: #fbfbfa; /* page */
-  --surface-1: #ffffff; /* cards */
-  --surface-2: #f2f2ef; /* quiet / not-current */
-  --surface-3: #e8e8e3; /* pressed, wells */
-  --line: #dcdcd6;
-  --line-strong: #b9b9b1;
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-text: #16181c;
+  --color-divider: color-mix(in srgb, #16181c 16%, transparent);
 
-  /* ink */
-  --ink: #16181d;
-  --ink-2: #3a3d45;
-  --ink-3: #6b6f78;
+  --color-neutral-100: #ffffff;
+  --color-neutral-200: #f0f1f4;
+  --color-neutral-300: #dcdee3;
+  --color-neutral-400: #c3c6cd;
+  --color-neutral-500: #9a9ea7;
+  --color-neutral-600: #6f747d;
+  --color-neutral-700: #4e535b;
+  --color-neutral-800: #33373d;
+  --color-neutral-900: #1d2025;
 
-  /* primary blue ramp (overridden at runtime by logo colour extraction) */
-  --primary-100: #e3edfb;
-  --primary-200: #c2d6f5;
-  --primary-300: #93b5ec;
-  --primary-400: #5d90e0;
-  --primary-500: #1f5fbf;
-  --primary-600: #1a4fa0;
-  --primary-700: #163f80;
-  --primary-800: #113062;
-  --primary-900: #0c2247;
-  --primary: var(--primary-500);
-  --on-primary: #ffffff;
+  --color-accent: #2f4bd8;
+  --color-accent-100: #eceffd;
+  --color-accent-200: #d7defb;
+  --color-accent-300: #b3c0f6;
+  --color-accent-400: #8098ef;
+  --color-accent-500: #2f4bd8;
+  --color-accent-600: #2a43c2;
+  --color-accent-700: #2438a1;
+  --color-accent-800: #1d2d80;
+  --color-accent-900: #16225f;
 
-  /* accents */
-  --teal-100: #dcf3f0;
-  --teal-500: #178f83;
-  --teal-700: #0f6259;
-  --terracotta-100: #fbe6df;
-  --terracotta-500: #c9573a;
-  --terracotta-700: #93402a;
-  --brass-500: #a8812e;
-  --sage-500: #6a8f5f;
+  --color-accent-2: #0f8f86;
+  --color-accent-2-100: #e6f4f2;
+  --color-accent-2-200: #c9e8e4;
+  --color-accent-2-300: #97d3cc;
+  --color-accent-2-400: #5fb9b0;
+  --color-accent-2-500: #0f8f86;
+  --color-accent-2-600: #0e857c;
+  --color-accent-2-700: #0d7a72;
+  --color-accent-2-800: #0a615b;
+  --color-accent-2-900: #084a45;
 
-  /* status */
-  --ok: var(--teal-500);
-  --warn: #b7791f;
-  --danger: var(--terracotta-500);
+  --shadow-sm: 0 1px 2px rgba(20, 24, 32, 0.06);
+  --shadow-md: 0 2px 8px rgba(20, 24, 32, 0.09);
+  --shadow-lg: 0 8px 28px rgba(20, 24, 32, 0.12);
 
-  /* geometry */
   --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --control-h: 40px; /* minimum control height, everywhere */
-  --rail-w: 56px;
-  --shadow-1: 0 1px 2px rgb(22 24 29 / 0.06), 0 1px 1px rgb(22 24 29 / 0.04);
-  --shadow-2: 0 4px 16px rgb(22 24 29 / 0.1), 0 1px 3px rgb(22 24 29 / 0.06);
-  --focus: 0 0 0 3px var(--primary-200);
+  --rail-w: 76px;
 }
 
 *,
@@ -74,13 +73,20 @@ body,
 }
 
 body {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--ink);
-  background: var(--surface-0);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--color-text);
+  background: var(--color-neutral-200);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+}
+
+a {
+  color: var(--color-accent-700);
+}
+a:hover {
+  color: var(--color-accent-800);
 }
 
 button,
@@ -90,25 +96,35 @@ textarea {
   font: inherit;
   color: inherit;
 }
-
 button {
-  min-height: var(--control-h);
   cursor: pointer;
+  font-family: var(--font-body);
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+input[type='range'] {
+  accent-color: var(--color-accent);
 }
 
-input,
-select,
-textarea {
-  min-height: var(--control-h);
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
 }
-
-:focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: 999px;
 }
 
 .mono {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.tnum {
   font-variant-numeric: tabular-nums;
 }
 
@@ -122,4 +138,36 @@ textarea {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Leaflet (home map) — the stock stylesheet is imported in HomeMap.tsx */
+.leaflet-container {
+  background: var(--color-neutral-200);
+  font-family: var(--font-body);
+}
+.leaflet-tile-pane {
+  filter: saturate(0.28) contrast(0.9) brightness(1.07);
+}
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.8);
+}
+.leaflet-tooltip {
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-100);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  border: none;
+  font-family: var(--font-body);
+}
+.hcount {
+  font-family: var(--font-body);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  border: 2.5px solid var(--color-neutral-100);
 }

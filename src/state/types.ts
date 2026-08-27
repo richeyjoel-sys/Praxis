@@ -1,28 +1,104 @@
-// Praxis state tree.
-// STUB — the full ~45-key shape is ported from Praxis.dc.html once the
-// prototype is staged. Only the surface-level keys the app shell needs live
-// here now; every key below is expected to survive the port.
+// The one state tree, in two halves:
+//   doc — everything the planner authored. Undoable, persisted.
+//   ui  — where they are and what is open. Not undoable; a few keys persisted.
+// Nothing derived is stored: see src/model/select.ts.
 
-export type Surface = 'builder' | 'planner'
+import type {
+  Act,
+  ActType,
+  EventMeta,
+  Hotel,
+  HotelMeta,
+  Layers,
+  MoveMod,
+  MoveVehicle,
+  PlacedItem,
+  PlanTool,
+  PlanToolId,
+  PlanUnderlay,
+  Role,
+  RoomDef,
+  SignType,
+  Site,
+  Transport,
+  UploadedIcon,
+} from '@/model/types'
+
+export interface Doc {
+  xActs: Record<string, Act[]> // custom movements, keyed `${hotel}|${iso}`
+  veh: Record<string, unknown> // legacy; kept for forward compatibility of saved plans
+  roleAdj: Record<string, number> // `${hotel}|${iso}|${shift}|${role}` → ±
+  caps: Record<string, string> // captain names, same key
+  xRoles: Role[]
+  tports: Transport[]
+  hidden: Record<string, true> // matrix groups taken off the day
+  hmeta: Record<string, HotelMeta>
+  xHotels: Hotel[]
+  mv: Record<string, MoveVehicle> // transport per movement
+  tmod: Record<string, MoveMod> // overrides per movement
+  grp: Record<string, number[]> // group sizes per movement
+  gsz: Record<string, number> // delegates-per-group per movement
+  xRooms: RoomDef[]
+  rname: Record<string, string> // room renames
+  sites: Record<string, Site> // keyed by hotel name
+  xActTypes: ActType[]
+  atmeta: Record<string, Partial<ActType>> // overrides on built-in activity types
+  signs: SignType[]
+  rolemeta: Record<string, Partial<Role>>
+  xIcons: UploadedIcon[]
+  items: Record<string, PlacedItem[]> // keyed `${hotel}|${iso}`
+  ev: EventMeta
+  floors: number
+}
+
+export type View = 'builder' | 'planner'
 export type PlannerMode = 'plan' | 'live'
-export type ShiftId = 'morning' | 'midday' | 'evening'
+export type Drawer = 'place' | 'space' | 'layers' | 'plans' | null
+export type StudioTab = 'act' | 'role' | 'tport' | 'sign'
 
-export interface EventMeta {
+export interface PendingUpload {
   name: string
-  dates: string[] // ISO dates, ordered
-  logoDataUrl: string | null
-  palette: { primary: string; accent: string } | null
+  src: string | null
+  note: string
+  reading?: boolean
+  failed?: boolean
 }
 
-export interface PlanState {
-  event: EventMeta
-  surface: Surface
-  plannerMode: PlannerMode
-  hotelId: string
-  date: string
-  shift: ShiftId // the ONE shift selector in the whole app
+export interface Ui {
+  // persisted
+  hotel: string | null // hotel name; null = home map
+  date: string | null // ISO; null = first date
+  shift: 'am' | 'mid' | 'pm'
+  view: View
+  pmode: PlannerMode
+  units: 'ft' | 'm'
+  layers: Partial<Layers>
+  // transient
+  mins: number
+  playing: boolean
+  speed: number
+  openMoves: Record<string, boolean>
+  stepShut: Record<string, boolean>
+  studio: boolean
+  studioTab: StudioTab
+  setup: boolean
+  hotelCard: { name: string; top: number } | null
+  drawer: Drawer
+  ptl: PlanToolId
+  ptool: PlanTool | null
+  psuite: string
+  lvl: number
+  sitePick: string | null
+  ipick: string | null
+  finder: null | 'looking' | 'done'
+  pendingUp: PendingUpload | null
+  logoCols: string[]
+  restored: boolean
 }
 
-/** Keys snapshotted for undo. Transient UI keys (surface, mode) are excluded. */
-export const UNDOABLE_KEYS = ['event'] as const satisfies readonly (keyof PlanState)[]
-export type UndoSlice = Pick<PlanState, (typeof UNDOABLE_KEYS)[number]>
+export interface Persisted {
+  doc: Doc
+  ui: Pick<Ui, 'hotel' | 'date' | 'shift' | 'view' | 'pmode' | 'units' | 'layers'>
+}
+
+export type { PlanUnderlay }

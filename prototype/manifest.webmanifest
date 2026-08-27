@@ -1,0 +1,14 @@
+{
+  "name": "Praxis — volunteer and transport planner",
+  "short_name": "Praxis",
+  "description": "Floor plans, shifts and coach movements for the nine pickup hotels.",
+  "start_url": "Praxis.dc.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eee7db",
+  "theme_color": "#c67139",
+  "icons": [
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ]
+}
