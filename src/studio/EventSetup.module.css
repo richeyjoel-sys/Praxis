@@ -1,0 +1,140 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 22px 14px;
+  padding: 16px 18px;
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-neutral-300);
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.row {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logoBox {
+  width: 68px;
+  height: 68px;
+  flex: none;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-neutral-300);
+}
+.upload {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--color-accent-100);
+  color: var(--color-accent-900);
+  border: 1.5px solid var(--color-accent-300);
+}
+.extract {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex-wrap: wrap;
+  padding: 11px 13px;
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-neutral-300);
+}
+.extractNote {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-neutral-700);
+}
+.colour {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  flex: none;
+  border: 1.5px solid rgba(20, 24, 32, 0.14);
+}
+.datesRow {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.addDate {
+  height: var(--control-h);
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--color-accent-100);
+  color: var(--color-accent-900);
+  border: 1.5px solid var(--color-accent-300);
+}
+.note {
+  font-size: 11.5px;
+  color: var(--color-neutral-600);
+  line-height: 1.45;
+}
+.palettes {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.palette {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  background: var(--color-bg);
+  color: var(--color-neutral-700);
+  border: 1.5px solid var(--color-neutral-300);
+}
+.palette[data-on='true'] {
+  background: var(--color-accent-100);
+  color: var(--color-accent-900);
+  border-color: var(--color-accent-300);
+}
+.sw {
+  display: flex;
+  gap: 3px;
+}
+.sw span {
+  width: 14px;
+  height: 14px;
+  border-radius: 5px;
+  border: 1px solid rgba(20, 24, 32, 0.12);
+}
