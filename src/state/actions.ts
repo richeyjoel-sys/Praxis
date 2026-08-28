@@ -513,13 +513,30 @@ export function ownDerived2(m: Model, id: string) {
   A_select({ kind: 'item', id: it.id })
 }
 
-/** One known distance sets the scale: underlay, walls, spaces and items grow together. */
+/** One known distance sets the scale: map, underlay, walls, spaces and items grow together. */
 export function calibrate2(m: Model, p: { factor: number; anchorX: number; anchorZ: number }) {
   const site = m.site2()
   const f = Math.max(0.05, Math.min(20, p.factor))
   const sx = (v: number) => +(p.anchorX + (v - p.anchorX) * f).toFixed(2)
   const sz = (v: number) => +(p.anchorZ + (v - p.anchorZ) * f).toFixed(2)
   const pl = site.underlay
+  // the map imagery rescales with everything else: its metres-per-pixel scales
+  // by the factor, and its anchor pixel is re-solved so the image's world
+  // position transforms about the same anchor as the drawing
+  let map2 = site.map
+  if (map2) {
+    const newFw = +Math.max(20, site.frame.w * f).toFixed(1)
+    const newFd = +Math.max(14, site.frame.d * f).toFixed(1)
+    const oldLeftX = site.frame.w / 2 - map2.px * map2.mpp
+    const oldTopZ = site.frame.d / 2 - map2.py * map2.mpp
+    const mpp2 = map2.mpp * f
+    map2 = {
+      ...map2,
+      mpp: mpp2,
+      px: +((newFw / 2 - sx(oldLeftX)) / mpp2).toFixed(3),
+      py: +((newFd / 2 - sz(oldTopZ)) / mpp2).toFixed(3),
+    }
+  }
   patchSite2(m, {
     walls: site.walls.map((w) => ({ ...w, pts: w.pts.map(([x, z]) => [sx(x), sz(z)] as [number, number]) })),
     spaces: site.spaces.map((s) => ({
@@ -540,6 +557,7 @@ export function calibrate2(m: Model, p: { factor: number; anchorX: number; ancho
           calibrated: true,
         }
       : pl,
+    map: map2,
     frame: {
       ...site.frame,
       w: +Math.max(20, site.frame.w * f).toFixed(1),
