@@ -73,7 +73,7 @@ export function initialUi(): Ui {
     studioTab: 'act',
     setup: false,
     hotelCard: null,
-    drawer: 'place',
+    drawer: null, // nothing opens until the planner asks for it
     dtool: 'select',
     ptool: null,
     psuite: 'furn',

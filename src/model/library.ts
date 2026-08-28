@@ -107,6 +107,17 @@ export const ICONS: Icon[] = [
   { id: 'sign', l: 'Signage', d: 'M12 3v3M6 6h12l2 4-2 4H6l-2-4zM12 14v7M9 21h6' },
   { id: 'cone', l: 'Marshalling', d: 'M12 3.5L18.5 20h-13zM9.2 12h5.6M7.8 16h8.4' },
   { id: 'grid', l: 'Zone', d: 'M4 4.5h6.5V11H4zM13.5 4.5H20V11h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z' },
+  // literal tool icons — each looks like the thing it does
+  { id: 'blueprint', l: 'Floor plan', d: 'M4 4.5h16v15H4zM4 10.5h7.5M15 10.5h5M11.5 10.5v9M11.5 4.5v2.5' },
+  { id: 'pencil', l: 'Draft', d: 'M4.5 19.5l.9-3.6L16.7 4.6a2 2 0 0 1 2.8 2.8L8.2 18.7l-3.7.8zM14.8 6.5l2.8 2.8' },
+  { id: 'play', l: 'Go live', d: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17M10 8.5l5.5 3.5-5.5 3.5z' },
+  { id: 'wall', l: 'Wall', d: 'M3.5 6.5h17v11h-17zM3.5 12h17M9 6.5V12M15 6.5V12M6.5 12v5.5M12 12v5.5M17.5 12v5.5' },
+  { id: 'road', l: 'Road', d: 'M5 20.5L9.5 3.5M19 20.5L14.5 3.5M12 6v2.4M12 10.8v2.4M12 15.6V18' },
+  { id: 'queue', l: 'Queue space', d: 'M4 7.5v-3h3M17 4.5h3v3M20 16.5v3h-3M7 19.5H4v-3M7.9 12h.6M11.7 12h.6M15.5 12h.6' },
+  { id: 'ruler', l: 'Scale', d: 'M3.5 16.5L16.5 3.5l4 4L7.5 20.5zM8.3 12.7l1.7 1.7M11.3 9.7l1.7 1.7M14.3 6.7l1.7 1.7' },
+  { id: 'map', l: 'Map', d: 'M3.5 6l5.7-2 5.6 2 5.7-2v14l-5.7 2-5.6-2-5.7 2zM9.2 4v14M14.8 6v14' },
+  { id: 'page', l: 'Plan file', d: 'M6 3.5h8l4 4v13H6zM14 3.5V8h4M12 16.5V12M9.9 14.1L12 12l2.1 2.1' },
+  { id: 'sparkle', l: 'Populate', d: 'M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9L12 18.5l-1.9-5.6-5.6-1.9 5.6-1.9zM18.8 16.8l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z' },
 ]
 export const ICON_BY: Record<string, Icon> = Object.fromEntries(ICONS.map((i) => [i.id, i]))
 

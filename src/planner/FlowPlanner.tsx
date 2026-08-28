@@ -61,7 +61,8 @@ export function FlowPlanner() {
     if (isDraft && ui.dtool === 'space') return 'Drag where a queue will stand — the simulation fills it'
     if (isDraft && ui.dtool === 'cal') return 'Two clicks on a known distance set the scale for everything'
     if (!isDraft) return 'Drag to orbit · click a piece to select it · drag it to move it'
-    return 'Click anything to select it · right-click for tools'
+    if (site.walls.length === 0) return 'Raise the structure — the wall tool traces walls over your ground'
+    return 'Fill the space — populate from the builder, or place furniture and people · right-click anything for tools'
   })()
 
   const onUpload = async (f: File | undefined) => {
@@ -81,15 +82,17 @@ export function FlowPlanner() {
     <div className={s.pane}>
       <div className={s.chrome}>
         <div className={s.chromeRow}>
+          {/* the two modes of the planner — same design language as the workspaces */}
           {(
             [
-              ['plan', 'Draft'],
-              ['live', 'Go live'],
+              ['plan', 'Draft', 'pencil'],
+              ['live', 'Go live', 'play'],
             ] as const
-          ).map(([id, l]) => (
-            <Pill key={id} tone="quiet" on={ui.pmode === id} onClick={() => A.setPmode(id)}>
+          ).map(([id, l, ic]) => (
+            <button key={id} className={s.mode} aria-pressed={ui.pmode === id} onClick={() => A.setPmode(id)}>
+              <Glyph icon={ic} size={15} />
               {l}
-            </Pill>
+            </button>
           ))}
           {isDraft && site.established && (
             <>
@@ -105,7 +108,7 @@ export function FlowPlanner() {
                 [
                   ['place', 'Place', '＋', 'Furniture, signs, people, vehicles'],
                   ['layers', 'Layers', '◍', 'What the model draws'],
-                  ['plans', 'Site', '⌗', 'Underlay, ground, floors, units'],
+                  ['plans', 'Ground', '⌗', 'Underlay, wall height, front drive, units'],
                 ] as const
               ).map(([id, l, g, title]) => (
                 <Pill key={id} tone="quiet" on={drawer === id} onClick={() => A.setDrawer(drawer === id ? null : id)} title={title}>
@@ -325,29 +328,38 @@ export function FlowPlanner() {
             {!site.established && isDraft && (
               <div className={s.establish}>
                 <div className={s.estCard}>
-                  <h3 className={s.estTitle}>{hotel?.short || 'This hotel'} has no plan yet</h3>
-                  <p className={s.estNote}>Pick where the geometry comes from — add the others afterwards.</p>
+                  <h3 className={s.estTitle}>Build your space</h3>
+                  <p className={s.estNote}>
+                    {hotel?.short || 'This hotel'} is bare ground. Choose how the geometry begins — the walls, roads
+                    and scale tools appear as you need them, and everything stays editable.
+                  </p>
                   <div className={s.routes}>
                     <label className={s.route}>
-                      <em>⌗</em>
+                      <em>
+                        <Glyph icon="page" size={17} />
+                      </em>
                       <span>
-                        <b>Upload a floor plan</b>
-                        <i>{hits.length ? hits[0]!.title + ' — Praxis has this on file' : 'The hotel’s event-space PDF, or any plan image'}</i>
+                        <b>Trace a floor plan</b>
+                        <i>{hits.length ? hits[0]!.title + ' — Praxis has this on file' : 'Upload the hotel’s event-space PDF or any plan image, then trace over it'}</i>
                       </span>
                       <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => void onUpload(e.target.files?.[0])} />
                     </label>
                     <button className={s.route} onClick={() => void pullMap()} disabled={!scene.hotelGeo || pulling}>
-                      <em>◉</em>
+                      <em>
+                        <Glyph icon="map" size={17} />
+                      </em>
                       <span>
                         <b>{pulling ? 'Pulling the map…' : 'Pull the real map'}</b>
-                        <i>{scene.hotelGeo ? 'OpenStreetMap around the hotel — traced to scale' : 'No coordinates for this hotel yet'}</i>
+                        <i>{scene.hotelGeo ? 'Aerial OpenStreetMap around the hotel, already to scale' : 'No coordinates for this hotel yet'}</i>
                       </span>
                     </button>
                     <button className={s.route} onClick={() => A.establish2(m)}>
-                      <em>▦</em>
+                      <em>
+                        <Glyph icon="pencil" size={17} />
+                      </em>
                       <span>
-                        <b>Draw from scratch</b>
-                        <i>Start with a blank ground and trace the walls yourself</i>
+                        <b>Draw it by hand</b>
+                        <i>Blank ground, wall tool in hand — trace the walls yourself</i>
                       </span>
                     </button>
                   </div>
@@ -358,7 +370,7 @@ export function FlowPlanner() {
               <div className={s.establish} style={{ pointerEvents: 'none' }}>
                 <div className={s.estCard} style={{ pointerEvents: 'auto' }}>
                   <h3 className={s.estTitle}>Nothing standing yet</h3>
-                  <p className={s.estNote}>This hotel has no footprint. Switch to Draft to upload a plan and trace its walls — then Go live stands them up.</p>
+                  <p className={s.estNote}>This hotel has no space built. Draft is where it begins — trace or pull the geometry, and Go live stands it up.</p>
                   <Pill tone="primary" onClick={() => A.setPmode('plan')}>
                     Go to Draft
                   </Pill>
@@ -397,11 +409,14 @@ function DraftTools({ draftRef }: { draftRef: React.RefObject<DraftCanvasHandle 
   return (
     <>
       <T icon="arrow" hex="#2f4bd8" title="Select and move" on={cur === 'select'} onClick={() => set('select')} />
-      <T icon="grid" hex="#33373d" title="Wall tool — trace the walls" on={cur === 'wall'} onClick={() => set('wall')} />
-      <T icon="table" hex="#0f8f86" title="Queue space — drag where people will stand" on={cur === 'space'} onClick={() => set('space')} />
-      <T icon="pin" hex="#57534c" title="Road tool — draw a road, bends and side streets welcome" on={cur === 'road'} onClick={() => set('road')} />
-      <T icon="split" hex="#c67139" title="Set the scale from a known distance" on={cur === 'cal'} onClick={() => set('cal')} />
-      <T icon="clipboard" hex="#7a8a5e" title="Import the builder’s desks and signs as editable objects" on={false} onClick={() => A.importDerived2(m)} />
+      <span className={s.grp}>Build</span>
+      <T icon="wall" hex="#33373d" title="Wall — trace the walls" on={cur === 'wall'} onClick={() => set('wall')} />
+      <T icon="road" hex="#57534c" title="Road — bends and side streets welcome" on={cur === 'road'} onClick={() => set('road')} />
+      <T icon="queue" hex="#0f8f86" title="Queue space — drag where people will stand" on={cur === 'space'} onClick={() => set('space')} />
+      <T icon="ruler" hex="#c67139" title="Scale — two clicks on a known distance" on={cur === 'cal'} onClick={() => set('cal')} />
+      <span className={s.grp}>Fill</span>
+      <T icon="sparkle" hex="#7a8a5e" title="Populate from the builder — the day's people, desks and signs" on={false} onClick={() => A.importDerived2(m)} />
+      <span className={s.grp}>View</span>
       <T icon="sun" hex="#6b6a67" title="Underlay opacity" on={false} onClick={() => draftRef.current?.cycleOpacity()} />
       <button className={s.tool} style={{ background: '#6b6a671f', color: '#6b6a67', fontSize: 16, fontWeight: 700 }} title="Zoom in" onClick={() => draftRef.current?.zoomBy(1.4)}>
         ＋

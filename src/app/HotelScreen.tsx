@@ -81,11 +81,12 @@ export function HotelScreen() {
             />
           )}
           {ev.name && <span className={s.evName}>{ev.name}</span>}
-          {/* the two workspaces — not chips: each is a different world */}
+          {/* the two workspaces — not chips: each is a different world.
+              The builder comes first: decide the schedule, then draw it. */}
           {(
             [
-              ['planner', 'Flow planner', '2', 'grid'],
               ['builder', 'Schedule builder', '1', 'clipboard'],
+              ['planner', 'Flow planner', '2', 'blueprint'],
             ] as const
           ).map(([id, l, key, ic]) => (
             <button
