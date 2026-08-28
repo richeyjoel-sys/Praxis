@@ -11,6 +11,7 @@ import { dayLabel, n } from '@/lib/format'
 import { EventSetup } from '@/studio/EventSetup'
 import { ScheduleBuilder } from '@/builder/ScheduleBuilder'
 import { FlowPlanner } from '@/planner/FlowPlanner'
+import { ReportStudio } from '@/report/ReportStudio'
 import s from './HotelScreen.module.css'
 
 export function HotelScreen() {
@@ -26,8 +27,9 @@ export function HotelScreen() {
   const other = m.tports().filter((t) => t.id !== 'coach')
   const dayPriv = acts.reduce((t, a) => t + other.reduce((k, tp) => k + m.tcount(a, tp), 0), 0)
   const planMode = ui.view === 'planner' && ui.pmode === 'plan'
-  const showStats = !planMode
-  const showDates = !planMode
+  const reportMode = ui.view === 'report'
+  const showStats = !planMode && !reportMode
+  const showDates = !planMode && !reportMode
   const addr = h.addr || m.meta(h.name).address
   const ev = m.doc.ev
   const dates = m.dateList()
@@ -87,6 +89,7 @@ export function HotelScreen() {
             [
               ['builder', 'Schedule builder', '1', 'clipboard'],
               ['planner', 'Flow planner', '2', 'blueprint'],
+              ['report', 'Report studio', '3', 'matrix'],
             ] as const
           ).map(([id, l, key, ic]) => (
             <button
@@ -144,7 +147,7 @@ export function HotelScreen() {
       </header>
 
       <div className={s.body} data-planner={ui.view === 'planner' ? 'true' : undefined}>
-        {ui.view === 'planner' ? <FlowPlanner /> : <ScheduleBuilder />}
+        {ui.view === 'planner' ? <FlowPlanner /> : ui.view === 'report' ? <ReportStudio /> : <ScheduleBuilder />}
       </div>
     </div>
   )

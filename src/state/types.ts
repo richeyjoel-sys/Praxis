@@ -54,7 +54,7 @@ export interface Doc {
   floors: number
 }
 
-export type View = 'builder' | 'planner'
+export type View = 'builder' | 'planner' | 'report'
 export type PlannerMode = 'plan' | 'live'
 export type Drawer = 'place' | 'space' | 'layers' | 'plans' | null
 export type StudioTab = 'act' | 'role' | 'tport' | 'sign'

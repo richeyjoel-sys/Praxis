@@ -119,6 +119,7 @@ export const ICONS: Icon[] = [
   { id: 'page', l: 'Plan file', d: 'M6 3.5h8l4 4v13H6zM14 3.5V8h4M12 16.5V12M9.9 14.1L12 12l2.1 2.1' },
   { id: 'sparkle', l: 'Populate', d: 'M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9L12 18.5l-1.9-5.6-5.6-1.9 5.6-1.9zM18.8 16.8l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z' },
   { id: 'eye', l: 'Show / hide', d: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5' },
+  { id: 'matrix', l: 'Report matrix', d: 'M4 4.5h16v15H4zM4 9.5h16M4 14.5h16M9.5 4.5v15M14.5 4.5v15' },
 ]
 export const ICON_BY: Record<string, Icon> = Object.fromEntries(ICONS.map((i) => [i.id, i]))
 

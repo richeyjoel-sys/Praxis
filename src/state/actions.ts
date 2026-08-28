@@ -16,7 +16,7 @@ const S = () => useStore.getState()
 export const goHome = () => S().set((u) => void (u.hotel = null))
 export const goHotel = (name: string) => S().set((u) => void (u.hotel = name))
 export const setDate = (iso: string) => S().set((u) => void (u.date = iso))
-export const setView = (view: 'builder' | 'planner') => S().set((u) => void (u.view = view))
+export const setView = (view: 'builder' | 'planner' | 'report') => S().set((u) => void (u.view = view))
 export const setPmode = (pmode: 'plan' | 'live') =>
   S().set((u) => {
     u.pmode = pmode

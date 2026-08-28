@@ -58,6 +58,7 @@ export function App() {
       { combo: { key: 'z', meta: true, shift: true }, run: redo, inFields: true },
       { combo: { key: '1', meta: true }, run: () => A.setView('builder') },
       { combo: { key: '2', meta: true }, run: () => A.setView('planner') },
+      { combo: { key: '3', meta: true }, run: () => A.setView('report') },
       { combo: { key: ',', meta: true }, run: () => (useStore.getState().ui.studio ? A.closeStudio() : A.openStudio()) },
       {
         combo: { key: 'Escape' },
