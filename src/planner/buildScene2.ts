@@ -6,6 +6,7 @@
 import type { Model } from '@/model/select'
 import type { SceneV2 } from '@/model/types'
 import { GEO } from '@/data/geo'
+import { SEED } from '@/model/scene'
 import * as A from '@/state/actions'
 
 export function buildScene2(m: Model): SceneV2 {
@@ -37,6 +38,7 @@ export function buildScene2(m: Model): SceneV2 {
     sel: ui.sel,
     level: m.lvl(),
     hotelGeo: GEO[hotel?.name || ''] || null,
+    frontage: !!SEED[hotel?.name || ''],
 
     onSelect: (sel) => A.select(sel),
     onMoveItem: (id, x, z) => A.moveItem2(m, id, x, z),
@@ -58,5 +60,7 @@ export function buildScene2(m: Model): SceneV2 {
     },
     onOwn: (id) => A.ownDerived2(m, id),
     onMap: (map) => A.setMap2(m, map),
+    onTool: (t) => A.setDraftTool(t),
+    onRotSite: (d) => A.rotSite(m, d),
   }
 }

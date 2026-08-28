@@ -286,7 +286,27 @@ export function FlowPlanner() {
                 <span className={s.flyL}>Remove the underlay</span>
               </button>
             )}
+            {(site.underlay || site.map) && (
+              <button
+                className={s.flyItem}
+                onClick={() => {
+                  setFly(null)
+                  draftRef.current?.startAlign()
+                }}
+              >
+                <span className={s.flyG} style={{ background: '#c67139' }}>
+                  <Glyph icon="ruler" size={14} />
+                </span>
+                <span>
+                  <span className={s.flyL}>Straighten the map</span>
+                  <span className={s.flySub} style={{ display: 'block' }}>Two clicks along an edge that should run flat</span>
+                </span>
+              </button>
+            )}
             <div style={{ borderTop: '1px solid var(--color-neutral-200)', margin: '8px 0', paddingTop: 9, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(site.underlay || site.map) && (
+                <Stepper label="Turn map" value={`${(site.rot || 0).toFixed(0)}°`} size="sm" onMinus={() => A.rotSite(m, -1)} onPlus={() => A.rotSite(m, 1)} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+              )}
               <Stepper label="Wall height" value={dim(site.wallH, units)} size="sm" onMinus={() => A.setWallH(m, site.wallH - 0.25)} onPlus={() => A.setWallH(m, site.wallH + 0.25)} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
               <Stepper label="Front drive" value={dim(frame.kerb, units)} size="sm" onMinus={() => A.setFrame(m, { kerb: Math.max(3, frame.kerb - 1) })} onPlus={() => A.setFrame(m, { kerb: Math.min(40, frame.kerb + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
               <Stepper label="Main road" value={dim(frame.street, units)} size="sm" onMinus={() => A.setFrame(m, { street: Math.max(4, frame.street - 1) })} onPlus={() => A.setFrame(m, { street: Math.min(30, frame.street + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
@@ -401,7 +421,22 @@ export function FlowPlanner() {
             {selWall && (
               <>
                 <div style={{ fontWeight: 800, fontSize: 14 }}>Wall · {dim(wallLength(selWall), units)}</div>
-                <div className={s.checkSub} style={{ marginBottom: 11 }}>{selWall.pts.length} points · drag a corner to reshape</div>
+                <div className={s.checkSub} style={{ marginBottom: 11 }}>
+                  {selWall.pts.length} points · drag a corner to reshape · with the wall tool, click either end to continue it
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 9 }}>
+                  <Stepper label="Rotate" value="±1°" size="sm" onMinus={() => A.rotateWall(m, selWall.id, -1)} onPlus={() => A.rotateWall(m, selWall.id, 1)} numStyle={{ minWidth: 40, fontSize: 12.5 }} />
+                  {selWall.pts.length === 2 && (
+                    <Stepper
+                      label="Length"
+                      value={dim(wallLength(selWall), units)}
+                      size="sm"
+                      onMinus={() => A.setWallLen(m, selWall.id, wallLength(selWall) - (units === 'ft' ? 0.3048 : 1))}
+                      onPlus={() => A.setWallLen(m, selWall.id, wallLength(selWall) + (units === 'ft' ? 0.3048 : 1))}
+                      numStyle={{ minWidth: 48, fontSize: 12.5 }}
+                    />
+                  )}
+                </div>
                 <Pill tone="soft" small onClick={() => A.deleteWall(m, selWall.id)} style={{ width: '100%', justifyContent: 'center' }} title="Delete or Backspace">
                   Remove
                 </Pill>

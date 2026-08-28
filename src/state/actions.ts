@@ -324,6 +324,35 @@ export const setUnderlay2 = (m: Model, u: PlanUnderlay | null) => patchSite2(m, 
 export const setMap2 = (m: Model, map: MapPull | null) =>
   patchSite2(m, map ? { map, established: true, scaled: 1 } : { map, established: true })
 export const establish2 = (m: Model) => patchSite2(m, { established: true })
+/** Turn the underlay/map imagery so the building sits square to the workspace. */
+export const rotSite = (m: Model, deltaDeg: number) => {
+  const r = ((m.site2().rot || 0) + deltaDeg) % 360
+  patchSite2(m, { rot: +r.toFixed(2) })
+}
+/** Rotate a whole wall about its centroid — aligning a trace after the fact. */
+export function rotateWall(m: Model, id: string, deg: number) {
+  const w = m.site2().walls.find((x) => x.id === id)
+  if (!w) return
+  const cx = w.pts.reduce((t, p) => t + p[0], 0) / w.pts.length
+  const cz = w.pts.reduce((t, p) => t + p[1], 0) / w.pts.length
+  const a = (deg * Math.PI) / 180
+  const cos = Math.cos(a)
+  const sin = Math.sin(a)
+  patchWall(
+    m,
+    id,
+    w.pts.map(([x, z]) => [+(cx + (x - cx) * cos - (z - cz) * sin).toFixed(2), +(cz + (x - cx) * sin + (z - cz) * cos).toFixed(2)] as [number, number]),
+  )
+}
+/** Set a straight (two-point) wall's length, holding its start and direction. */
+export function setWallLen(m: Model, id: string, lenM: number) {
+  const w = m.site2().walls.find((x) => x.id === id)
+  if (!w || w.pts.length !== 2) return
+  const [a, b] = [w.pts[0]!, w.pts[1]!]
+  const cur = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+  const k = Math.max(0.5, lenM) / cur
+  patchWall(m, id, [a, [+(a[0] + (b[0] - a[0]) * k).toFixed(2), +(a[1] + (b[1] - a[1]) * k).toFixed(2)]])
+}
 
 export function addRoad(m: Model, pts: [number, number][]) {
   if (pts.length < 2) return

@@ -161,6 +161,11 @@ export class DraftSurface {
   private draft: [number, number][] | null = null // the wall or road being drawn
   private draftKind: 'wall' | 'road' = 'wall'
   private _uiHtml = ''
+  /** Straighten-the-map: two clicks along an edge that should run flat. */
+  private alignOn = false
+  private alignA: { x: number; z: number } | null = null
+  /** Drawing began on an existing wall's end — the run continues that wall. */
+  private contWall: { id: string; end: 'a' | 'b' } | null = null
   private cursor: { x: number; z: number } | null = null
   private cal: { a?: { x: number; z: number }; b?: { x: number; z: number } } | null = null
   private underlayOp = 0.5
@@ -176,14 +181,32 @@ export class DraftSurface {
       }
       if (e.key === 'Escape') {
         this.draft = null
+        this.contWall = null
         this.draw()
         e.preventDefault()
       }
-    } else if (e.key === 'Escape' && (this.pop || this.cal)) {
-      this.pop = null
-      this.cal = null
-      this.draw()
+    } else if (e.key === 'Escape') {
+      if (this.pop || this.cal || this.alignOn) {
+        this.pop = null
+        this.cal = null
+        this.alignOn = false
+        this.alignA = null
+        this.draw()
+      } else {
+        // nothing drawing, nothing open: Esc puts the tool down
+        const s = this.S()
+        if (s && s.tool !== 'select') {
+          s.onTool('select')
+          this.draw()
+        }
+      }
     }
+  }
+  /** Arm the two-click straighten interaction (from the Plan flyout). */
+  startAlign(): void {
+    this.alignOn = true
+    this.alignA = null
+    this.draw()
   }
 
   constructor(host: HTMLElement, getScene: () => SceneV2 | null) {
@@ -385,6 +408,23 @@ export class DraftSurface {
       if (e.button === 2) return // right-click is the menu, handled on contextmenu
       const p = this.at(e)
       this.pop = null
+      // straightening the map: two clicks along an edge that should run flat
+      if (this.alignOn) {
+        if (!this.alignA) this.alignA = { x: p.x, z: p.z }
+        else {
+          const dx = p.x - this.alignA.x
+          const dz = p.z - this.alignA.z
+          if (Math.hypot(dx, dz) > 0.5) {
+            const ang = (Math.atan2(dz, dx) * 180) / Math.PI
+            const target = Math.round(ang / 90) * 90
+            s.onRotSite(+(target - ang).toFixed(2))
+          }
+          this.alignOn = false
+          this.alignA = null
+        }
+        this.draw()
+        return
+      }
       const grab = () => {
         try {
           this.svg.setPointerCapture(e.pointerId)
@@ -402,6 +442,23 @@ export class DraftSurface {
       if (s.tool === 'wall' || s.tool === 'road') {
         const pt = this.wallPoint(p, e.shiftKey)
         if (!this.draft) {
+          // starting on an existing wall's end CONTINUES that wall
+          if (s.tool === 'wall') {
+            const tol = Math.max(0.35, 11 / this.cm().ppm)
+            for (const w of s.site.walls) {
+              const a0 = w.pts[0]!
+              const b0 = w.pts[w.pts.length - 1]!
+              const hitB = Math.hypot(p.x - b0[0], p.z - b0[1]) < tol
+              const hitA = !hitB && Math.hypot(p.x - a0[0], p.z - a0[1]) < tol
+              if (hitB || hitA) {
+                this.contWall = { id: w.id, end: hitB ? 'b' : 'a' }
+                this.draft = [hitB ? b0 : a0]
+                this.draftKind = 'wall'
+                this.draw()
+                return
+              }
+            }
+          }
           this.draft = [pt]
           this.draftKind = s.tool
         } else {
@@ -649,7 +706,8 @@ export class DraftSurface {
       const dx = x - ax
       const dz = z - az
       const ang = Math.atan2(dz, dx)
-      const snap = (Math.round(ang / (Math.PI / 4)) * Math.PI) / 4
+      // 15° stops trace most buildings; Shift draws completely free
+      const snap = (Math.round(ang / (Math.PI / 12)) * Math.PI) / 12
       const len = Math.hypot(dx, dz)
       x = this.snap(ax + Math.cos(snap) * len)
       z = this.snap(az + Math.sin(snap) * len)
@@ -659,9 +717,18 @@ export class DraftSurface {
   private finishWall(): void {
     const s = this.S()
     const pts = this.draft
+    const cont = this.contWall
     this.draft = null
+    this.contWall = null
     if (s && pts && pts.length >= 2) {
-      if (this.draftKind === 'road') s.onAddRoad(pts)
+      if (cont && this.draftKind === 'wall') {
+        const w = s.site.walls.find((x) => x.id === cont.id)
+        if (w) {
+          const add = pts.slice(1)
+          const merged = (cont.end === 'b' ? [...w.pts, ...add] : [...[...add].reverse(), ...w.pts]) as [number, number][]
+          s.onPatchWall(cont.id, merged)
+        }
+      } else if (this.draftKind === 'road') s.onAddRoad(pts)
       else s.onAddWall(pts)
     }
     this.draw()
@@ -723,33 +790,40 @@ export class DraftSurface {
         uw = wM * K
         uh = hM * K
       }
+      const rot = s.site.rot || 0
+      const rcx = ox + uw / 2
+      const rcy = oy + uh / 2
       out.push(`<image href="${un.src}" x="${ox.toFixed(1)}" y="${oy.toFixed(1)}"
         width="${uw.toFixed(1)}" height="${uh.toFixed(1)}" opacity="${this.underlayOp}"
-        preserveAspectRatio="none"/>`)
+        preserveAspectRatio="none"${rot ? ` transform="rotate(${rot.toFixed(2)} ${rcx.toFixed(1)} ${rcy.toFixed(1)})"` : ''}/>`)
     }
 
-    // the public road, then the kerb
-    const kerbY = f.d + 1
-    const streetY = kerbY + f.kerb + 0.6
-    out.push(`<rect x="${X(-60)}" y="${Y(streetY)}" width="${((f.w + 120) * K).toFixed(1)}"
-      height="${(f.street * K).toFixed(1)}" fill="#57534c" fill-opacity=".16"
-      stroke="${c.ink}" stroke-width="1" stroke-opacity=".35"/>`)
-    const cl = streetY + f.street / 2
-    out.push(`<line x1="${X(-60)}" y1="${Y(cl)}" x2="${X(f.w + 60)}" y2="${Y(cl)}"
-      stroke="#c9a227" stroke-width="1.6" stroke-dasharray="${(2.4 * K).toFixed(1)} ${(2 * K).toFixed(1)}"/>`)
-    out.push(`<rect x="${X(0)}" y="${Y(kerbY)}" width="${(f.w * K).toFixed(1)}"
-      height="${(f.kerb * K).toFixed(1)}" fill="url(#dpav)" stroke="${c.ink}"
-      stroke-width="1.1" stroke-opacity=".5"/>`)
-    out.push(`<line x1="${X(0)}" y1="${Y(kerbY + f.kerb)}" x2="${X(f.w)}" y2="${Y(kerbY + f.kerb)}"
-      stroke="${c.ink}" stroke-width="2.4"/>`)
-    s.plan.geo.bays.forEach((bx, i) => {
-      out.push(`<g stroke="#ffffff" stroke-width="2" stroke-opacity=".85">
-        <line x1="${X(bx - 6.9)}" y1="${Y(kerbY + 0.4)}" x2="${X(bx - 6.9)}" y2="${Y(kerbY + f.kerb - 0.4)}"/>
-        <line x1="${X(bx + 6.9)}" y1="${Y(kerbY + 0.4)}" x2="${X(bx + 6.9)}" y2="${Y(kerbY + f.kerb - 0.4)}"/></g>`)
-      if (K > 5)
-        out.push(`<text x="${X(bx)}" y="${Y(kerbY + f.kerb * 0.55)}" text-anchor="middle"
-          font-size="${Math.min(15, 1.4 * K)}" font-weight="700" fill="${c.ink}" fill-opacity=".5">BAY ${i + 1}</text>`)
-    })
+    // the public road and kerb exist only where Praxis has REAL frontage data
+    // (the seed). Everywhere else the planner draws their own roads — nothing
+    // invented ever influences the drawing.
+    if (s.frontage) {
+      const kerbY = f.d + 1
+      const streetY = kerbY + f.kerb + 0.6
+      out.push(`<rect x="${X(-60)}" y="${Y(streetY)}" width="${((f.w + 120) * K).toFixed(1)}"
+        height="${(f.street * K).toFixed(1)}" fill="#57534c" fill-opacity=".16"
+        stroke="${c.ink}" stroke-width="1" stroke-opacity=".35"/>`)
+      const cl = streetY + f.street / 2
+      out.push(`<line x1="${X(-60)}" y1="${Y(cl)}" x2="${X(f.w + 60)}" y2="${Y(cl)}"
+        stroke="#c9a227" stroke-width="1.6" stroke-dasharray="${(2.4 * K).toFixed(1)} ${(2 * K).toFixed(1)}"/>`)
+      out.push(`<rect x="${X(0)}" y="${Y(kerbY)}" width="${(f.w * K).toFixed(1)}"
+        height="${(f.kerb * K).toFixed(1)}" fill="url(#dpav)" stroke="${c.ink}"
+        stroke-width="1.1" stroke-opacity=".5"/>`)
+      out.push(`<line x1="${X(0)}" y1="${Y(kerbY + f.kerb)}" x2="${X(f.w)}" y2="${Y(kerbY + f.kerb)}"
+        stroke="${c.ink}" stroke-width="2.4"/>`)
+      s.plan.geo.bays.forEach((bx, i) => {
+        out.push(`<g stroke="#ffffff" stroke-width="2" stroke-opacity=".85">
+          <line x1="${X(bx - 6.9)}" y1="${Y(kerbY + 0.4)}" x2="${X(bx - 6.9)}" y2="${Y(kerbY + f.kerb - 0.4)}"/>
+          <line x1="${X(bx + 6.9)}" y1="${Y(kerbY + 0.4)}" x2="${X(bx + 6.9)}" y2="${Y(kerbY + f.kerb - 0.4)}"/></g>`)
+        if (K > 5)
+          out.push(`<text x="${X(bx)}" y="${Y(kerbY + f.kerb * 0.55)}" text-anchor="middle"
+            font-size="${Math.min(15, 1.4 * K)}" font-weight="700" fill="${c.ink}" fill-opacity=".5">BAY ${i + 1}</text>`)
+      })
+    }
 
     // drawn roads: asphalt ribbons with a dashed centreline — bends and side
     // streets, so vehicles can stage and queue away from the kerb
@@ -867,6 +941,14 @@ export class DraftSurface {
         fill="${c.accent2}" fill-opacity=".14" stroke="${c.accent2}" stroke-width="2" stroke-dasharray="6 4"/>
         <text x="${X(x + w2 / 2)}" y="${(+Y(y + d2 / 2) + 4).toFixed(1)}" text-anchor="middle"
           font-size="12" font-weight="700" fill="${c.accent2}">${ft(w2)} × ${ft(d2)}</text>`)
+    }
+    // the straighten line
+    if (this.alignOn && this.alignA) {
+      const a = this.alignA
+      const b = this.cursor || a
+      out.push(`<g stroke="${c.accent2}" stroke-width="2.4">
+        <line x1="${X(a.x)}" y1="${Y(a.z)}" x2="${X(b.x)}" y2="${Y(b.z)}" stroke-dasharray="8 5"/>
+        <circle cx="${X(a.x)}" cy="${Y(a.z)}" r="5" fill="#fff"/></g>`)
     }
     // the calibration line
     if (this.cal?.a) {
@@ -1027,14 +1109,18 @@ export class DraftSurface {
         ${can ? '<button class="ok" data-dc="ok">✓ Done</button>' : '<span style="font-weight:600;color:#c3c6cd">click the next point</span>'}
         <button class="no" data-dc="no">Esc</button></div>`
     }
-    const hint = s.place
+    const hint = this.alignOn
+      ? this.alignA
+        ? 'Click the far end — the map turns so this edge runs flat'
+        : 'Straighten: click one end of an edge that should run flat (a wall face, a street)'
+      : s.place
       ? `Click to place ${esc(s.place.l)} · hold Alt to keep placing`
       : s.tool === 'wall' || s.tool === 'road'
         ? this.draft
-          ? `Click along the ${this.draftKind === 'road' ? 'road — bends welcome' : 'walls'} · ✓ Done commits it · Esc cancels`
+          ? `Click along the ${this.draftKind === 'road' ? 'road — bends welcome' : 'walls'} · hold Shift for a free angle · ✓ Done commits it`
           : s.tool === 'road'
             ? 'Click to start a road — click again for each bend, start on a road for a side street'
-            : 'Click to start a wall run — trace right over the plan'
+            : 'Click to start a wall — or click an existing wall’s end to continue it'
         : s.tool === 'space'
           ? 'Drag a rectangle where a queue will stand'
           : s.tool === 'cal'
@@ -1064,6 +1150,7 @@ export class DraftSurface {
     if (dNo)
       dNo.onclick = () => {
         this.draft = null
+        this.contWall = null
         this.draw()
       }
 

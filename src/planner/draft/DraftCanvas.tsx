@@ -10,6 +10,7 @@ export interface DraftCanvasHandle {
   fitNow: () => void
   cycleOpacity: () => void
   clearTool: () => void
+  startAlign: () => void
   pullMap: (lat: number, lon: number) => Promise<boolean>
 }
 
@@ -39,6 +40,7 @@ export function DraftCanvas({ getScene, ref }: { getScene: () => SceneV2 | null;
       fitNow: () => surfRef.current?.fitNow(),
       cycleOpacity: () => surfRef.current?.cycleOpacity(),
       clearTool: () => surfRef.current?.clearTool(),
+      startAlign: () => surfRef.current?.startAlign(),
       pullMap: (lat, lon) => surfRef.current?.pullMap(lat, lon) ?? Promise.resolve(false),
     }),
     [],

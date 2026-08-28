@@ -409,6 +409,7 @@ export interface SiteV2 {
   items: ItemV2[]
   frame: SiteFrame
   scaled?: 1 // the planner set a real scale (calibrated, or from the georeferenced map)
+  rot?: number // degrees the underlay/map imagery is turned, so a building sits square
 }
 
 export type DraftTool = 'select' | 'wall' | 'road' | 'space' | 'cal'
@@ -436,6 +437,7 @@ export interface SceneV2 {
   sel: Selection | null
   level: number
   hotelGeo: HotelGeo | null
+  frontage: boolean // this hotel has REAL kerb/bay data (the seed); others draw their own roads
   // callbacks — every one dispatches a named action
   onSelect: (sel: Selection | null) => void
   onMoveItem: (id: string, x: number, z: number) => void
@@ -454,4 +456,6 @@ export interface SceneV2 {
   onCalibrate: (p: { factor: number; anchorX: number; anchorZ: number }) => void
   onOwn: (id: string) => void // adopt a derived object
   onMap: (m: MapPull) => void // a pulled map becomes part of the site
+  onTool: (t: DraftTool) => void // the surface can put a tool down (Esc with nothing drawing)
+  onRotSite: (deltaDeg: number) => void // turn the underlay/map imagery
 }
