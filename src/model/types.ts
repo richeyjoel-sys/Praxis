@@ -347,6 +347,14 @@ export interface Wall {
   pts: [number, number][]
 }
 
+/** A drawn road: a centreline polyline with a width — bends, side streets,
+ *  staging loops. The frame's base street stays underneath as the arrival road. */
+export interface Road {
+  id: string
+  pts: [number, number][]
+  w: number // metres
+}
+
 /** A named region the simulation can queue in — drawn, not implied. */
 export interface SpaceV2 {
   id: string
@@ -396,14 +404,15 @@ export interface SiteV2 {
   map: MapPull | null
   walls: Wall[]
   wallH: number // metres — the "how tall are the walls" answer
+  roads: Road[]
   spaces: SpaceV2[]
   items: ItemV2[]
   frame: SiteFrame
 }
 
-export type DraftTool = 'select' | 'wall' | 'space' | 'cal'
+export type DraftTool = 'select' | 'wall' | 'road' | 'space' | 'cal'
 export interface Selection {
-  kind: 'item' | 'wall' | 'space'
+  kind: 'item' | 'wall' | 'road' | 'space'
   id: string
 }
 
@@ -433,6 +442,8 @@ export interface SceneV2 {
   onDuplicateItem: (id: string) => void
   onPatchWall: (id: string, pts: [number, number][]) => void
   onAddWall: (pts: [number, number][]) => void
+  onAddRoad: (pts: [number, number][]) => void
+  onPatchRoad: (id: string, p: { pts?: [number, number][]; w?: number }) => void
   onAddSpace: (r: { x: number; y: number; w: number; d: number }) => void
   onPatchSpace: (id: string, p: Partial<SpaceV2>) => void
   onRenameSpace: (id: string, l: string) => void

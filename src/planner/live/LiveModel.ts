@@ -4,7 +4,7 @@
 // a hotel with nothing drawn shows only ground, kerb, street and the simulation.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import type { GeoRoom, ItemV2, Layers, SceneV2, SimGeo, SpaceV2, Wall, World } from '@/model/types'
+import type { GeoRoom, ItemV2, Layers, Road, SceneV2, SimGeo, SpaceV2, Wall, World } from '@/model/types'
 import { WALL_T } from '@/model/site2'
 import { build, type Sim } from '@/sim/sim'
 
@@ -436,7 +436,7 @@ export class LiveModel {
   }
 
   // ---------- static model ----------
-  private build(geo: SimGeo, walls: Wall[], spaces: SpaceV2[], wallH: number): void {
+  private build(geo: SimGeo, walls: Wall[], spaces: SpaceV2[], wallH: number, roads: Road[]): void {
     const g = this.statics
     const c = C()
     while (g.children.length) {
@@ -487,6 +487,48 @@ export class LiveModel {
           false, false)
       add(box(0.16, 0.02, geo.kerbDepth * 0.66, mat.line, bx + 6.9, 0.16, geo.kerbY + geo.kerbDepth * 0.6),
           false, false)
+    })
+
+    // drawn roads: asphalt ribbons wherever the planner bent them — one shallow
+    // box per segment plus a disc at each bend so corners read as paved, with a
+    // dashed gold centreline matching the draft. Roads are ground: they never rise.
+    const roadMat = M('#57534c', 0.94)
+    const dashMat = M('#c9a227', 0.62)
+    roads.forEach((r, ri) => {
+      const h = 0.05 + ri * 0.004 // stagger heights a hair so joints never z-fight
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1]
+        const b = r.pts[i]
+        if (!a || !b) continue
+        const dx = b[0] - a[0]
+        const dz = b[1] - a[1]
+        const len = Math.hypot(dx, dz)
+        if (len < 0.05) continue
+        const ang = -Math.atan2(dz, dx)
+        const seg = new THREE.Mesh(new THREE.BoxGeometry(len, h, r.w), roadMat)
+        seg.position.set((a[0] + b[0]) / 2, h / 2 - 0.015, (a[1] + b[1]) / 2)
+        seg.rotation.y = ang
+        seg.receiveShadow = true
+        g.add(seg)
+        // centreline dashes, laid on top of the ribbon
+        const ux = dx / len
+        const uz = dz / len
+        for (let t = 2; t + 1.6 < len; t += 4.2) {
+          const dsh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.02, 0.14), dashMat)
+          dsh.position.set(a[0] + ux * (t + 0.8), h - 0.005, a[1] + uz * (t + 0.8))
+          dsh.rotation.y = ang
+          dsh.receiveShadow = false
+          dsh.castShadow = false
+          g.add(dsh)
+        }
+        // pave the bend at each interior vertex
+        if (i < r.pts.length - 1) {
+          const disc = new THREE.Mesh(new THREE.CylinderGeometry(r.w / 2, r.w / 2, h * 0.96, 22), roadMat)
+          disc.position.set(b[0], (h * 0.96) / 2 - 0.015, b[1])
+          disc.receiveShadow = true
+          g.add(disc)
+        }
+      }
     })
 
     // the underlay the walls were traced over, faint on the ground
@@ -844,7 +886,7 @@ export class LiveModel {
     const lv = s.level || 0
     const spaces = s.site.spaces.filter((sp) => (sp.lvl || 0) === lv)
     const sig = JSON.stringify([s.hotelName, lv, geo.buildW, geo.buildD, geo.kerbY, geo.kerbDepth,
-      geo.streetY, geo.streetDepth, geo.bays, s.site.wallH, s.site.walls,
+      geo.streetY, geo.streetDepth, geo.bays, s.site.wallH, s.site.walls, s.site.roads,
       spaces.map((sp) => [sp.id, sp.x, sp.y, sp.w, sp.d])])
     const under = s.site.underlay ? s.site.underlay.src : null
     if (under !== this._under) { this._under = under || null; this._sig = null }
@@ -852,7 +894,7 @@ export class LiveModel {
       this._sig = sig
       this.geo = geo
       this.spaces = spaces
-      this.build(geo, s.site.walls, spaces, s.site.wallH)
+      this.build(geo, s.site.walls, spaces, s.site.wallH, s.site.roads)
       this.pools()
       if (this._mode === 'live') this.frame(true)
     }

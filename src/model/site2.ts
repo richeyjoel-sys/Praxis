@@ -17,6 +17,7 @@ export function blankSite(): SiteV2 {
     map: null,
     walls: [],
     wallH: DEFAULT_WALL_H,
+    roads: [],
     spaces: [],
     items: [],
     frame: { w: 64, d: 42, kerb: 7, street: 9 },
@@ -91,6 +92,7 @@ export function resolveFrame(site: SiteV2): SiteFrame {
     w = Math.max(w, s.x + s.w + pad)
     d = Math.max(d, s.y + s.d + pad)
   })
+  // roads may run anywhere — they do not grow the building ground
   return { ...site.frame, w, d }
 }
 

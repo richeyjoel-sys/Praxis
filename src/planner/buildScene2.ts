@@ -44,6 +44,8 @@ export function buildScene2(m: Model): SceneV2 {
     onDuplicateItem: (id) => A.duplicateItem2(m, id),
     onPatchWall: (id, pts) => A.patchWall(m, id, pts),
     onAddWall: (pts) => A.addWall(m, pts),
+    onAddRoad: (pts) => A.addRoad(m, pts),
+    onPatchRoad: (id, p) => A.patchRoad(m, id, p),
     onAddSpace: (r) => A.addSpace2(m, r),
     onPatchSpace: (id, p) => A.patchSpace2(m, id, p),
     onRenameSpace: (id, l) => A.renameSpace2(m, id, l),

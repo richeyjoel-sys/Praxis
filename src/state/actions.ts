@@ -6,7 +6,7 @@ import { useStore } from './store'
 import type { Model } from '@/model/select'
 import type { Shift } from '@/model/library'
 import { ICON_BY, SWATCH } from '@/model/library'
-import type { Act, Dir, DraftTool, ItemV2, MapPull, PlanTool, PlanUnderlay, Selection, SignType, SiteFrame, SiteV2, SpaceV2, Transport, Role, ActType, HotelMeta, EventMeta, Wall } from '@/model/types'
+import type { Act, Dir, DraftTool, ItemV2, MapPull, PlanTool, PlanUnderlay, Road, Selection, SignType, SiteFrame, SiteV2, SpaceV2, Transport, Role, ActType, HotelMeta, EventMeta, Wall } from '@/model/types'
 import { uid } from '@/lib/ids'
 
 const S = () => useStore.getState()
@@ -313,6 +313,20 @@ export const setUnderlay2 = (m: Model, u: PlanUnderlay | null) => patchSite2(m, 
 export const setMap2 = (m: Model, map: MapPull | null) => patchSite2(m, { map, established: true })
 export const establish2 = (m: Model) => patchSite2(m, { established: true })
 
+export function addRoad(m: Model, pts: [number, number][]) {
+  if (pts.length < 2) return
+  const r: Road = { id: uid('rd'), pts, w: 8 }
+  patchSite2(m, { roads: [...m.site2().roads, r], established: true })
+  A_select({ kind: 'road', id: r.id })
+}
+export function patchRoad(m: Model, id: string, p: { pts?: [number, number][]; w?: number }) {
+  patchSite2(m, { roads: m.site2().roads.map((r) => (r.id === id ? { ...r, ...p } : r)) })
+}
+export function deleteRoad(m: Model, id: string) {
+  patchSite2(m, { roads: m.site2().roads.filter((r) => r.id !== id) })
+  A_select(null)
+}
+
 export function addWall(m: Model, pts: [number, number][]) {
   if (pts.length < 2) return
   const w: Wall = { id: uid('w'), pts }
@@ -388,12 +402,14 @@ export function deleteSelection(m: Model) {
   if (!sel) return
   if (sel.kind === 'item') deleteItem2(m, sel.id)
   else if (sel.kind === 'wall') deleteWall(m, sel.id)
+  else if (sel.kind === 'road') deleteRoad(m, sel.id)
   else deleteSpace2(m, sel.id)
 }
 
-/** The builder's derived objects become real objects you can move and delete. */
+/** Populate from the builder: the day's roles, desks and signs become real
+ *  objects you can move, rotate and delete. */
 export function importDerived2(m: Model) {
-  const der = m.derived2()
+  const der = m.populateItems()
   if (!der.length) return
   const made = der.map((d) => ({ ...d, auto: 0 as const, id: uid('i') }))
   patchSite2(m, { items: [...m.site2().items, ...made] })

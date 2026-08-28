@@ -4,7 +4,7 @@
 // The chrome reserves its own space (never sticky); the model wrapper is the
 // height authority and the surface fills it exactly — zero internal scroll.
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useModel } from '@/model/useModel'
 import * as A from '@/state/actions'
 import { SUITES, clockOf } from '@/model/library'
@@ -29,7 +29,7 @@ export function FlowPlanner() {
   // the surfaces poll the scene; this ref always points at the latest one
   const scene = useMemo(() => buildScene2(m), [m])
   const sceneRef = useRef<SceneV2>(scene)
-  sceneRef.current = scene
+  useEffect(() => { sceneRef.current = scene }, [scene])
   const getScene = useCallback(() => sceneRef.current, [])
 
   const site = m.site2()
@@ -45,12 +45,14 @@ export function FlowPlanner() {
   const selItem = sel?.kind === 'item' ? site.items.find((x) => x.id === sel.id) : null
   const selSpace = sel?.kind === 'space' ? site.spaces.find((x) => x.id === sel.id) : null
   const selWall = sel?.kind === 'wall' ? site.walls.find((x) => x.id === sel.id) : null
+  const selRoad = sel?.kind === 'road' ? site.roads.find((x) => x.id === sel.id) : null
   const [planOpen, setPlanOpen] = useState(true)
 
   const hint = (() => {
     if (!site.established && isDraft) return 'Pick where the geometry comes from — everything after that is drawn in place'
     if (ui.ptool) return `Click to drop ${ui.ptool.l} — hold Alt to keep placing · Esc to stop`
     if (isDraft && ui.dtool === 'wall') return 'Trace along the plan · Enter finishes a run · walls rise when you Go live'
+    if (isDraft && ui.dtool === 'road') return 'Click a path for the road — bends and side streets welcome · Enter finishes'
     if (isDraft && ui.dtool === 'space') return 'Drag where a queue will stand — the simulation fills it'
     if (isDraft && ui.dtool === 'cal') return 'Two clicks on a known distance set the scale for everything'
     if (!isDraft) return 'Drag to orbit · click a piece to select it · drag it to move it'
@@ -119,7 +121,7 @@ export function FlowPlanner() {
         </div>
 
         {/* the selection, editable right here — never a modal */}
-        {(selItem || selSpace || selWall) && (
+        {(selItem || selSpace || selWall || selRoad) && (
           <div className={s.chromeRow} style={{ gap: 9 }}>
             {selItem && (
               <>
@@ -141,6 +143,18 @@ export function FlowPlanner() {
                 <Stepper label="Depth" value={dim(selSpace.d, units)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { d: Math.max(2, selSpace.d - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { d: selSpace.d + 1 })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
                 <Stepper label="Floor" value={String(selSpace.lvl || 0)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { lvl: Math.max(0, (selSpace.lvl || 0) - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { lvl: (selSpace.lvl || 0) + 1 })} numStyle={{ minWidth: 32, fontSize: 12.5 }} />
                 <Pill tone="soft" small onClick={() => A.deleteSpace2(m, selSpace.id)} title="Delete or Backspace">
+                  Remove ⌫
+                </Pill>
+              </>
+            )}
+            {selRoad && (
+              <>
+                <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>
+                  Road · {dim(wallLength(selRoad), units)}
+                </span>
+                <Stepper label="Width" value={dim(selRoad.w, units)} size="sm" onMinus={() => A.patchRoad(m, selRoad.id, { w: Math.max(3, selRoad.w - 1) })} onPlus={() => A.patchRoad(m, selRoad.id, { w: Math.min(30, selRoad.w + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+                <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>Drag it to move · drag a corner to bend it</span>
+                <Pill tone="soft" small onClick={() => A.deleteRoad(m, selRoad.id)} title="Delete or Backspace">
                   Remove ⌫
                 </Pill>
               </>
@@ -184,6 +198,10 @@ export function FlowPlanner() {
 
         {drawer === 'place' && (
           <div className={s.chromeRow}>
+            <Pill tone="soft" onClick={() => A.importDerived2(m)} title="The day's greeters, pick-ups, desk staff, desks and signs become editable objects — placed logically, or lined up by the kerb until the scene exists">
+              ✦ Populate from the builder
+            </Pill>
+            <VSep />
             {SUITES.map((su) => {
               const on = suite.id === su.id
               return (
@@ -340,7 +358,7 @@ export function FlowPlanner() {
 function DraftTools({ draftRef }: { draftRef: React.RefObject<DraftCanvasHandle | null> }) {
   const m = useModel()
   const cur = m.ui.dtool
-  const set = (id: 'select' | 'wall' | 'space' | 'cal') => {
+  const set = (id: 'select' | 'wall' | 'road' | 'space' | 'cal') => {
     A.setDraftTool(m.ui.dtool === id && id !== 'select' ? 'select' : id)
     draftRef.current?.clearTool()
   }
@@ -349,6 +367,7 @@ function DraftTools({ draftRef }: { draftRef: React.RefObject<DraftCanvasHandle 
       <T icon="arrow" hex="#2f4bd8" title="Select and move" on={cur === 'select'} onClick={() => set('select')} />
       <T icon="grid" hex="#33373d" title="Wall tool — trace the walls" on={cur === 'wall'} onClick={() => set('wall')} />
       <T icon="table" hex="#0f8f86" title="Queue space — drag where people will stand" on={cur === 'space'} onClick={() => set('space')} />
+      <T icon="pin" hex="#57534c" title="Road tool — draw a road, bends and side streets welcome" on={cur === 'road'} onClick={() => set('road')} />
       <T icon="split" hex="#c67139" title="Set the scale from a known distance" on={cur === 'cal'} onClick={() => set('cal')} />
       <T icon="clipboard" hex="#7a8a5e" title="Import the builder’s desks and signs as editable objects" on={false} onClick={() => A.importDerived2(m)} />
       <T icon="sun" hex="#6b6a67" title="Underlay opacity" on={false} onClick={() => draftRef.current?.cycleOpacity()} />

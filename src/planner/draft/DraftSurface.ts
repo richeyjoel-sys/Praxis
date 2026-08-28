@@ -5,7 +5,7 @@
 // labels, real object symbols. Reads the SceneV2 getter; writes back only
 // through its callbacks.
 
-import type { ItemV2, SceneV2, SpaceV2, Wall } from '@/model/types'
+import type { ItemV2, Road, SceneV2, SpaceV2, Wall } from '@/model/types'
 import { distToWall } from '@/model/site2'
 
 const tok = (n: string, f: string): string =>
@@ -77,12 +77,14 @@ type Down =
   | { mode: 'pan'; p: Pt; cx: number; cz: number }
   | { mode: 'item'; id: string; p: Pt; x0: number; z0: number; moved?: boolean }
   | { mode: 'wall'; id: string; p: Pt; pts0: [number, number][]; moved?: boolean }
+  | { mode: 'road'; id: string; p: Pt; pts0: [number, number][]; moved?: boolean }
   | { mode: 'vertex'; id: string; vi: number; pts0: [number, number][] }
+  | { mode: 'rvertex'; id: string; vi: number; pts0: [number, number][] }
   | { mode: 'space'; id: string; p: Pt; x0: number; y0: number; moved?: boolean }
   | { mode: 'size'; id: string; p: Pt; w0: number; d0: number }
   | { mode: 'rubber'; p: Pt }
 interface Pop {
-  kind: 'item' | 'space' | 'wall' | 'auto'
+  kind: 'item' | 'space' | 'wall' | 'road' | 'auto'
   id: string
   sx: number
   sy: number
@@ -149,7 +151,8 @@ export class DraftSurface {
   private hover: string | null = null
   private _down: Down | null = null
   private pop: Pop | null = null
-  private draft: [number, number][] | null = null // the wall being drawn
+  private draft: [number, number][] | null = null // the wall or road being drawn
+  private draftKind: 'wall' | 'road' = 'wall'
   private cursor: { x: number; z: number } | null = null
   private cal: { a?: { x: number; z: number }; b?: { x: number; z: number } } | null = null
   private underlayOp = 0.5
@@ -323,6 +326,18 @@ export class DraftSurface {
     }
     return -1
   }
+  private roadAt(x: number, z: number, s: SceneV2): Road | null {
+    let best: Road | null = null
+    let bd = Infinity
+    s.site.roads.forEach((r) => {
+      const d = distToWall(r, x, z) - r.w / 2
+      if (d < 0.3 && d < bd) {
+        bd = d
+        best = r
+      }
+    })
+    return best
+  }
   private spaceAt(x: number, z: number, s: SceneV2): SpaceV2 | null {
     let best: SpaceV2 | null = null
     let ba = Infinity
@@ -376,10 +391,12 @@ export class DraftSurface {
         this.draw()
         return
       }
-      if (s.tool === 'wall') {
+      if (s.tool === 'wall' || s.tool === 'road') {
         const pt = this.wallPoint(p, e.shiftKey)
-        if (!this.draft) this.draft = [pt]
-        else {
+        if (!this.draft) {
+          this.draft = [pt]
+          this.draftKind = s.tool
+        } else {
           // clicking the first vertex closes the loop
           const [fx, fz] = this.draft[0]!
           if (this.draft.length > 2 && Math.hypot(pt[0] - fx, pt[1] - fz) < Math.max(0.4, 8 / this.cm().ppm)) {
@@ -429,6 +446,23 @@ export class DraftSurface {
         this.draw()
         return
       }
+      const selRoad = s.sel?.kind === 'road' ? s.site.roads.find((r) => r.id === s.sel!.id) : null
+      if (selRoad) {
+        const vi = this.vertexAt(p.x, p.z, selRoad)
+        if (vi >= 0) {
+          this._down = { mode: 'rvertex', id: selRoad.id, vi, pts0: selRoad.pts.map((q) => [...q]) }
+          grab()
+          return
+        }
+      }
+      const rd = this.roadAt(p.x, p.z, s)
+      if (rd) {
+        s.onSelect({ kind: 'road', id: rd.id })
+        this._down = { mode: 'road', id: rd.id, p, pts0: rd.pts.map((q) => [...q]) }
+        grab()
+        this.draw()
+        return
+      }
       const selSpace = s.sel?.kind === 'space' ? s.site.spaces.find((z2) => z2.id === s.sel!.id) : null
       if (selSpace) {
         const hx = selSpace.x + selSpace.w
@@ -469,7 +503,7 @@ export class DraftSurface {
         const h = this.hoverKey(p, s)
         this.svg.style.cursor = s.place
           ? 'copy'
-          : s.tool === 'wall' || s.tool === 'space'
+          : s.tool === 'wall' || s.tool === 'road' || s.tool === 'space'
             ? 'crosshair'
             : s.tool === 'cal'
               ? 'crosshair'
@@ -502,6 +536,15 @@ export class DraftSurface {
         const pts = d.pts0.map((q) => [...q] as [number, number])
         pts[d.vi] = [this.snap(p.x), this.snap(p.z)]
         s.onPatchWall(d.id, pts)
+      } else if (d.mode === 'road') {
+        d.moved = true
+        const dx = this.snap(p.x - d.p.x)
+        const dz = this.snap(p.z - d.p.z)
+        s.onPatchRoad(d.id, { pts: d.pts0.map(([x, z]) => [x + dx, z + dz] as [number, number]) })
+      } else if (d.mode === 'rvertex') {
+        const pts = d.pts0.map((q) => [...q] as [number, number])
+        pts[d.vi] = [this.snap(p.x), this.snap(p.z)]
+        s.onPatchRoad(d.id, { pts })
       } else if (d.mode === 'space') {
         d.moved = true
         s.onPatchSpace(d.id, { x: this.snap(d.x0 + (p.x - d.p.x)), y: this.snap(d.y0 + (p.z - d.p.z)) })
@@ -554,6 +597,13 @@ export class DraftSurface {
         this.draw()
         return
       }
+      const rd = this.roadAt(p.x, p.z, s)
+      if (rd) {
+        s.onSelect({ kind: 'road', id: rd.id })
+        this.pop = { kind: 'road', id: rd.id, sx: p.sx, sy: p.sy }
+        this.draw()
+        return
+      }
       const sp = this.spaceAt(p.x, p.z, s)
       if (sp) {
         s.onSelect({ kind: 'space', id: sp.id })
@@ -576,6 +626,8 @@ export class DraftSurface {
     if (it) return 'item:' + it.id
     const w = this.wallAt(p.x, p.z, s)
     if (w) return 'wall:' + w.id
+    const rd = this.roadAt(p.x, p.z, s)
+    if (rd) return 'road:' + rd.id
     const sp = this.spaceAt(p.x, p.z, s)
     if (sp) return 'space:' + sp.id
     return null
@@ -600,7 +652,10 @@ export class DraftSurface {
     const s = this.S()
     const pts = this.draft
     this.draft = null
-    if (s && pts && pts.length >= 2) s.onAddWall(pts)
+    if (s && pts && pts.length >= 2) {
+      if (this.draftKind === 'road') s.onAddRoad(pts)
+      else s.onAddWall(pts)
+    }
     this.draw()
   }
 
@@ -688,6 +743,27 @@ export class DraftSurface {
           font-size="${Math.min(15, 1.4 * K)}" font-weight="700" fill="${c.ink}" fill-opacity=".5">BAY ${i + 1}</text>`)
     })
 
+    // drawn roads: asphalt ribbons with a dashed centreline — bends and side
+    // streets, so vehicles can stage and queue away from the kerb
+    s.site.roads.forEach((r) => {
+      const on = s.sel?.kind === 'road' && s.sel.id === r.id
+      const hov = this.hover === 'road:' + r.id
+      const d = r.pts.map(([x, z], i) => `${i ? 'L' : 'M'} ${X(x)} ${Y(z)}`).join(' ')
+      out.push(`<g data-h="road" data-id="${r.id}">
+        <path d="${d}" fill="none" stroke="#57534c" stroke-opacity="${on ? 0.42 : hov ? 0.34 : 0.26}"
+          stroke-width="${(r.w * K).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="${d}" fill="none" stroke="#c9a227" stroke-width="1.4"
+          stroke-dasharray="${(2.2 * K).toFixed(1)} ${(1.8 * K).toFixed(1)}" stroke-opacity=".8"/>
+        ${on ? `<path d="${d}" fill="none" stroke="${c.accent}" stroke-width="2" stroke-dasharray="6 4"/>` : ''}
+      </g>`)
+      if (on)
+        r.pts.forEach(([x, z], i) =>
+          out.push(`<rect data-h="rvertex" data-id="${r.id}" data-vi="${i}"
+            x="${(+X(x) - 5).toFixed(1)}" y="${(+Y(z) - 5).toFixed(1)}" width="10" height="10" rx="3"
+            fill="#fff" stroke="${c.accent}" stroke-width="2"/>`),
+        )
+    })
+
     // spaces: light regions with dashed borders — the simulation's ground truth
     if (L('zones'))
       s.site.spaces.forEach((sp) => {
@@ -749,10 +825,15 @@ export class DraftSurface {
       out.push(this.symbol(it, it.hex || cls.hex, on, K, c))
     })
 
-    // the wall being drawn
+    // the wall or road being drawn
     if (this.draft && this.draft.length) {
+      const road = this.draftKind === 'road'
+      const previewW = road ? 8 * K : wallPx
       const d = this.draft.map(([x, z], i) => `${i ? 'L' : 'M'} ${X(x)} ${Y(z)}`).join(' ')
-      out.push(`<path d="${d}" fill="none" stroke="${c.accent}" stroke-width="${wallPx.toFixed(1)}"
+      if (road)
+        out.push(`<path d="${d}" fill="none" stroke="#57534c" stroke-opacity=".22"
+          stroke-width="${previewW.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`)
+      out.push(`<path d="${d}" fill="none" stroke="${c.accent}" stroke-width="${(road ? 2 : wallPx).toFixed(1)}"
         stroke-linecap="square" stroke-opacity=".9"/>`)
       if (this.cursor) {
         const [lx, lz] = this.draft[this.draft.length - 1]!
@@ -1017,6 +1098,10 @@ export class DraftSurface {
       return `<div class="pop" style="${this.popAt(p, 136)}">
         <div class="hd"><i style="background:#33373d"></i>Wall</div>
         <button class="rm" data-m="rm"><em>⌫</em>Delete this wall</button></div>`
+    if (p.kind === 'road')
+      return `<div class="pop" style="${this.popAt(p, 136)}">
+        <div class="hd"><i style="background:#57534c"></i>Road</div>
+        <button class="rm" data-m="rm"><em>⌫</em>Delete this road</button></div>`
     const it = s.site.items.find((x) => x.id === p.id)
     const cls = CL[it?.kind || 'furn']
     return `<div class="pop" style="${this.popAt(p, 208)}">

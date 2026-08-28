@@ -123,6 +123,7 @@ export interface Model {
   simPlan(): SimPlan
   defaultQueue(): string
   derived2(): ItemV2[]
+  populateItems(): ItemV2[]
   iconList(): { id: string; l: string; up?: boolean }[]
 }
 
@@ -364,7 +365,8 @@ export function createModel(doc: Doc, ui: Ui, matrix: Matrix): Model {
   m.site2 = memo((): SiteV2 => {
     const nm = m.hotelName()
     const saved = (doc.sites2 || {})[nm]
-    if (saved) return saved
+    // spread over blank so sites saved before a field existed still carry it
+    if (saved) return { ...migrateSite('', undefined), ...saved }
     return migrateSite(nm, (doc.sites || {})[nm])
   })
   m.frame2 = memo(() => resolveFrame(m.site2()))
@@ -497,6 +499,45 @@ export function createModel(doc: Doc, ui: Ui, matrix: Matrix): Model {
     return out
   })
 
+
+
+  // everything the builder implies for this shift, as placeable objects:
+  // the derived desks and signs, plus the roles — greeters at the lobby,
+  // desk staff behind the desks, pick-ups along the kerb at the bays.
+  // with no spaces drawn yet, everyone lines up in a marshalling row by the
+  // kerb and waits for the scene to be built.
+  m.populateItems = () => {
+    const out: ItemV2[] = m.derived2().map((d) => ({ ...d }))
+    const cov = m.cover(m.shiftNow())
+    const geo = m.geoRooms()
+    const f = m.frame2()
+    const lobbyId = m.defaultQueue()
+    const lobby = lobbyId ? geo[lobbyId] : undefined
+    const cap = (n: number) => Math.min(30, Math.max(0, n))
+    let march = 0
+    const marshal = (): { x: number; z: number } => ({
+      x: 2 + (march % 16) * 1.1,
+      z: f.d - 1.2 - Math.floor(march++ / 16) * 1.2,
+    })
+    const push = (t: string, l: string, at: { x: number; z: number }) =>
+      out.push({ id: '', kind: 'people', t, l, x: +at.x.toFixed(2), z: +at.z.toFixed(2), auto: 1 })
+    for (let i = 0; i < cap(cov.greeter || 0); i++)
+      push(
+        'greeter',
+        'Greeter',
+        lobby ? { x: lobby.x + 1 + (i % 12) * ((lobby.w - 2) / 12), z: lobby.y + lobby.d - 1.2 - Math.floor(i / 12) } : marshal(),
+      )
+    for (let i = 0; i < cap(cov.desk || 0); i++) {
+      const desk = out.filter((o) => o.t === 'desk')[i]
+      push('desk', 'Welcome desk staff', desk ? { x: desk.x, z: desk.z - 1 } : lobby ? { x: lobby.x + 2 + i, z: lobby.y + 2 } : marshal())
+    }
+    const bays = bayXs(f)
+    const kerbZ = f.d + 1 + f.kerb * 0.25
+    for (let i = 0; i < cap(cov.pickup || 0); i++)
+      push('pickup', 'Pick-Up', { x: (bays[i % bays.length] ?? f.w / 2) - 4 + Math.floor(i / bays.length) * 1.6, z: kerbZ })
+    out.forEach((o, i) => (o.id = o.id || 'p' + i))
+    return out
+  }
 
   m.iconList = () =>
     (doc.xIcons || [])
