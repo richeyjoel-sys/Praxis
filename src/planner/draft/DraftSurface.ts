@@ -172,9 +172,14 @@ export class DraftSurface {
   private cal: { a?: { x: number; z: number }; b?: { x: number; z: number } } | null = null
   private underlayOp = 0.5
   private _keepTool = false
+  private _shift = false
 
   private readonly onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Alt') this._keepTool = e.type === 'keydown'
+    if (e.key === 'Shift') {
+      this._shift = e.type === 'keydown'
+      if (this.draft) this.draw() // the preview follows the snap the moment Shift moves
+    }
     if (e.type !== 'keydown') return
     if (this.draft) {
       if (e.key === 'Enter') {
@@ -628,6 +633,8 @@ export class DraftSurface {
         return
       }
       const d = this._down
+      // smooth by default — holding Shift snaps to the quarter-metre grid
+      const sn = (v: number) => (e.shiftKey ? this.snap(v) : +v.toFixed(2))
       if (d.mode === 'pan') {
         const c = this.cm()
         c.x = d.cx - (p.x - d.p.x)
@@ -636,35 +643,35 @@ export class DraftSurface {
       } else if (d.mode === 'rubber' || d.mode === 'marquee') {
         this.draw()
       } else if (d.mode === 'many') {
-        s.onMoveMany(d.snap, this.snap(p.x - d.p.x), this.snap(p.z - d.p.z))
+        s.onMoveMany(d.snap, sn(p.x - d.p.x), sn(p.z - d.p.z))
       } else if (d.mode === 'item') {
         d.moved = true
-        s.onMoveItem(d.id, this.snap(d.x0 + (p.x - d.p.x)), this.snap(d.z0 + (p.z - d.p.z)))
+        s.onMoveItem(d.id, sn(d.x0 + (p.x - d.p.x)), sn(d.z0 + (p.z - d.p.z)))
       } else if (d.mode === 'wall') {
         d.moved = true
-        const dx = this.snap(p.x - d.p.x)
-        const dz = this.snap(p.z - d.p.z)
+        const dx = sn(p.x - d.p.x)
+        const dz = sn(p.z - d.p.z)
         s.onPatchWall(d.id, d.pts0.map(([x, z]) => [x + dx, z + dz] as [number, number]))
       } else if (d.mode === 'vertex') {
         const pts = d.pts0.map((q) => [...q] as [number, number])
-        pts[d.vi] = [this.snap(p.x), this.snap(p.z)]
+        pts[d.vi] = [sn(p.x), sn(p.z)]
         s.onPatchWall(d.id, pts)
       } else if (d.mode === 'road') {
         d.moved = true
-        const dx = this.snap(p.x - d.p.x)
-        const dz = this.snap(p.z - d.p.z)
+        const dx = sn(p.x - d.p.x)
+        const dz = sn(p.z - d.p.z)
         s.onPatchRoad(d.id, { pts: d.pts0.map(([x, z]) => [x + dx, z + dz] as [number, number]) })
       } else if (d.mode === 'rvertex') {
         const pts = d.pts0.map((q) => [...q] as [number, number])
-        pts[d.vi] = [this.snap(p.x), this.snap(p.z)]
+        pts[d.vi] = [sn(p.x), sn(p.z)]
         s.onPatchRoad(d.id, { pts })
       } else if (d.mode === 'space') {
         d.moved = true
-        s.onPatchSpace(d.id, { x: this.snap(d.x0 + (p.x - d.p.x)), y: this.snap(d.y0 + (p.z - d.p.z)) })
+        s.onPatchSpace(d.id, { x: sn(d.x0 + (p.x - d.p.x)), y: sn(d.y0 + (p.z - d.p.z)) })
       } else if (d.mode === 'size') {
         s.onPatchSpace(d.id, {
-          w: Math.max(2, this.snap(d.w0 + (p.x - d.p.x))),
-          d: Math.max(2, this.snap(d.d0 + (p.z - d.p.z))),
+          w: Math.max(2, sn(d.w0 + (p.x - d.p.x))),
+          d: Math.max(2, sn(d.d0 + (p.z - d.p.z))),
         })
       }
     })
@@ -767,16 +774,17 @@ export class DraftSurface {
     if (sp) return 'space:' + sp.id
     return null
   }
-  /** The next wall vertex: grid-snapped, and angle-snapped to 45° unless Shift is held. */
-  private wallPoint(p: Pt, free: boolean): [number, number] {
+  /** The next wall vertex. Free and smooth by default; holding Shift snaps
+   *  it to the grid and the run's angle to 15° stops. */
+  private wallPoint(p: Pt, wantSnap: boolean): [number, number] {
+    if (!wantSnap) return [+p.x.toFixed(2), +p.z.toFixed(2)]
     let x = this.snap(p.x)
     let z = this.snap(p.z)
-    if (this.draft && this.draft.length && !free) {
+    if (this.draft && this.draft.length) {
       const [ax, az] = this.draft[this.draft.length - 1]!
       const dx = x - ax
       const dz = z - az
       const ang = Math.atan2(dz, dx)
-      // 15° stops trace most buildings; Shift draws completely free
       const snap = (Math.round(ang / (Math.PI / 12)) * Math.PI) / 12
       const len = Math.hypot(dx, dz)
       x = this.snap(ax + Math.cos(snap) * len)
@@ -967,7 +975,7 @@ export class DraftSurface {
         stroke-linecap="square" stroke-opacity=".9"/>`)
       if (this.cursor) {
         const [lx, lz] = this.draft[this.draft.length - 1]!
-        const nxt = this.wallPoint({ ...this.cursor, sx: 0, sy: 0 }, false)
+        const nxt = this.wallPoint({ ...this.cursor, sx: 0, sy: 0 }, this._shift)
         const len = Math.hypot(nxt[0] - lx, nxt[1] - lz)
         out.push(`<line x1="${X(lx)}" y1="${Y(lz)}" x2="${X(nxt[0])}" y2="${Y(nxt[1])}"
           stroke="${c.accent}" stroke-width="${Math.max(1.4, wallPx * 0.5).toFixed(1)}" stroke-dasharray="7 5"/>
@@ -1175,7 +1183,7 @@ export class DraftSurface {
       ? `Click to place ${esc(s.place.l)} · hold Alt to keep placing`
       : s.tool === 'wall' || s.tool === 'road'
         ? this.draft
-          ? `Click along the ${this.draftKind === 'road' ? 'road — bends welcome' : 'walls'} · hold Shift for a free angle · ✓ Done commits it`
+          ? `Click along the ${this.draftKind === 'road' ? 'road — bends welcome' : 'walls'} · hold Shift to snap to 15° angles · ✓ Done commits it`
           : s.tool === 'road'
             ? 'Click to start a road — click again for each bend, start on a road for a side street'
             : 'Click to start a wall — or click an existing wall’s end to continue it'
