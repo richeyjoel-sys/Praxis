@@ -57,6 +57,7 @@ export function migrateSite(hotelName: string, v1: Site | undefined): SiteV2 {
       walls,
       spaces,
       frame: { w: v1.w, d: v1.d, kerb: v1.kerb, street: v1.street },
+      scaled: 1,
     }
   }
   if (seed) {
@@ -73,6 +74,7 @@ export function migrateSite(hotelName: string, v1: Site | undefined): SiteV2 {
       walls,
       spaces,
       frame: { w: seed.w, d: seed.d, kerb: seed.kerb, street: seed.street },
+      scaled: 1,
     }
   }
   return blankSite()

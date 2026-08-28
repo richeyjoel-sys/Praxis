@@ -25,7 +25,7 @@ await p.screenshot({ path: 'screens/03-cascade.png' })
 await p.click('text=Flow planner')
 await p.waitForTimeout(3000)
 await p.screenshot({ path: 'screens/04-live.png' })
-await p.getByRole('button', { name: 'Draft', exact: true }).click()
+await p.getByRole('button', { name: /BUILD/ }).click()
 await p.waitForTimeout(1200)
 await p.screenshot({ path: 'screens/05-plan.png' })
 

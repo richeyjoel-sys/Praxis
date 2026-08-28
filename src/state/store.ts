@@ -74,6 +74,7 @@ export function initialUi(): Ui {
     setup: false,
     hotelCard: null,
     drawer: null, // nothing opens until the planner asks for it
+    stage: 'build',
     dtool: 'select',
     ptool: null,
     psuite: 'furn',

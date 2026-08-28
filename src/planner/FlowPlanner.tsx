@@ -1,8 +1,8 @@
-// Flow planner — the site, as ONE flow:
-//   blank → footprint (upload / pull the map / draw) → walls → places → Go live.
-// Draft is the 2D drafting surface; Go live stands the same site up in 3D.
-// The chrome reserves its own space (never sticky); the model wrapper is the
-// height authority and the surface fills it exactly — zero internal scroll.
+// Flow planner — one progression: BUILD the space → FILL it → RUN the day.
+// The canvas is the hero. Tools live on it in a slim left rail (only the
+// current stage's tools), properties live in a right inspector that overlays
+// and never reflows, and every drawing shows a live chip with a ✓ Done button.
+// The chrome is a single row: the three stage tabs and the day.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useModel } from '@/model/useModel'
@@ -12,17 +12,19 @@ import { PLANS } from '@/data/plans'
 import { buildScene2 } from './buildScene2'
 import type { SceneV2 } from '@/model/types'
 import { wallLength } from '@/model/site2'
-import { Glyph, IconBtn, Pill, Stepper, VSep, inputClass } from '@/ui'
+import { Glyph, Pill, Stepper, inputClass } from '@/ui'
 import { dayLabel, dim } from '@/lib/format'
 import { DraftCanvas, type DraftCanvasHandle } from './draft/DraftCanvas'
 import { LiveCanvas } from './live/LiveCanvas'
 import { readPlanFile } from './readPlan'
 import s from './planner.module.css'
 
+type Stage = 'build' | 'fill' | 'run'
+type Fly = null | 'plan' | 'suite' | 'custom'
+
 export function FlowPlanner() {
   const m = useModel()
   const ui = m.ui
-  const isDraft = ui.pmode === 'plan'
   const draftRef = useRef<DraftCanvasHandle>(null)
   const [pulling, setPulling] = useState(false)
 
@@ -35,8 +37,6 @@ export function FlowPlanner() {
   const site = m.site2()
   const frame = m.frame2()
   const units = ui.units
-  const drawer = ui.drawer
-  const suite = SUITES.find((x) => x.id === ui.psuite) || SUITES[0]!
   const hotel = m.hotel()
   const hits = PLANS[hotel?.name || ''] || []
   const dates = m.dateList()
@@ -46,177 +46,424 @@ export function FlowPlanner() {
   const selSpace = sel?.kind === 'space' ? site.spaces.find((x) => x.id === sel.id) : null
   const selWall = sel?.kind === 'wall' ? site.walls.find((x) => x.id === sel.id) : null
   const selRoad = sel?.kind === 'road' ? site.roads.find((x) => x.id === sel.id) : null
-  const [planOpen, setPlanOpen] = useState(true)
-  // offer to stand the builder's day up in the plan — once, never a modal
-  const [popSeen, setPopSeen] = useState<string | null>(null)
-  const popKey = (hotel?.name || '') + '|' + m.iso()
-  const showPop =
-    isDraft && site.established && site.items.length === 0 && popSeen !== popKey && m.populateItems().length > 0
+  const anySel = !!(selItem || selSpace || selWall || selRoad)
 
-  const hint = (() => {
-    if (!site.established && isDraft) return 'Pick where the geometry comes from — everything after that is drawn in place'
-    if (ui.ptool) return `Click to drop ${ui.ptool.l} — hold Alt to keep placing · Esc to stop`
-    if (isDraft && ui.dtool === 'wall') return 'Trace along the plan · Enter finishes a run · walls rise when you Go live'
-    if (isDraft && ui.dtool === 'road') return 'Click a path for the road — bends and side streets welcome · Enter finishes'
-    if (isDraft && ui.dtool === 'space') return 'Drag where a queue will stand — the simulation fills it'
-    if (isDraft && ui.dtool === 'cal') return 'Two clicks on a known distance set the scale for everything'
-    if (!isDraft) return 'Drag to orbit · click a piece to select it · drag it to move it'
-    if (site.walls.length === 0) return 'Raise the structure — the wall tool traces walls over your ground'
-    return 'Fill the space — populate from the builder, or place furniture and people · right-click anything for tools'
-  })()
+  const stage: Stage = ui.pmode === 'live' ? 'run' : ui.stage === 'fill' ? 'fill' : 'build'
+  const isDraft = stage !== 'run'
+  const suite = SUITES.find((x) => x.id === ui.psuite) || SUITES[0]!
+
+  const [fly, setFly] = useState<Fly>(null)
+  const [customName, setCustomName] = useState('')
+  // the answered dead-end: what Populate says when there is nothing to place
+  const [callout, setCallout] = useState<string | null>(null)
 
   const onUpload = async (f: File | undefined) => {
     if (!f) return
+    setFly(null)
     await readPlanFile(m, f)
   }
   const pullMap = async () => {
     const g = scene.hotelGeo
     if (!g || pulling) return
     setPulling(true)
+    setFly(null)
     const ok = await draftRef.current?.pullMap(g.lat, g.lon)
     setPulling(false)
     if (!ok) A.establish2(m) // tiles unreachable — start from a blank frame instead
   }
+  const populate = () => {
+    if (m.populateItems().length === 0) {
+      setCallout(`The schedule for ${dayLabel(m.iso())} is empty — build it first, then populate.`)
+      return
+    }
+    setCallout(null)
+    A.importDerived2(m)
+  }
+  const setTool = (id: 'wall' | 'road' | 'space' | 'cal') => {
+    A.setDraftTool(ui.dtool === id ? 'select' : id)
+    A.armTool(null)
+    setFly(null)
+    draftRef.current?.clearTool()
+  }
+  const openSuite = (id: string) => {
+    if (fly === 'suite' && ui.psuite === id) setFly(null)
+    else {
+      A.setSuite(id)
+      setFly('suite')
+    }
+  }
+  const placeCustom = () => {
+    const name = customName.trim() || 'Custom item'
+    A.armTool({ kind: 'furn', t: 'custom', l: name, g: '◻' })
+    setFly(null)
+  }
+
+  const wallsDone = site.walls.length > 0
+  const planDone = !!site.underlay || !!site.map
+  const scaleDone = !!site.scaled
 
   return (
     <div className={s.pane}>
+      {/* the chrome: ONE row — the three stages, then the day */}
       <div className={s.chrome}>
         <div className={s.chromeRow}>
-          {/* the two modes of the planner — same design language as the workspaces */}
           {(
             [
-              ['plan', 'Draft', 'pencil'],
-              ['live', 'Go live', 'play'],
+              ['build', 'BUILD', 'wall', site.established && wallsDone],
+              ['fill', 'FILL', 'sparkle', site.items.length > 0],
+              ['run', 'RUN', 'play', false],
             ] as const
-          ).map(([id, l, ic]) => (
-            <button key={id} className={s.mode} aria-pressed={ui.pmode === id} onClick={() => A.setPmode(id)}>
-              <Glyph icon={ic} size={15} />
-              {l}
+          ).map(([id, l, ic, done]) => (
+            <button key={id} className={s.stage} aria-pressed={stage === id} onClick={() => A.setStage(id)}>
+              <Glyph icon={ic} size={19} />
+              <b>
+                {l}
+                {done && stage !== id ? ' ✓' : ''}
+              </b>
             </button>
           ))}
-          {isDraft && site.established && (
-            <>
-              <VSep />
-              <DraftTools draftRef={draftRef} />
-            </>
-          )}
-          {/* nothing about placing or layering exists until the site does */}
-          {site.established && (
-            <>
-              <VSep />
-              {(
-                [
-                  ['place', 'Place', '＋', 'Furniture, signs, people, vehicles'],
-                  ['layers', 'Layers', '◍', 'What the model draws'],
-                  ['plans', 'Ground', '⌗', 'Underlay, wall height, front drive, units'],
-                ] as const
-              ).map(([id, l, g, title]) => (
-                <Pill key={id} tone="quiet" on={drawer === id} onClick={() => A.setDrawer(drawer === id ? null : id)} title={title}>
-                  <span style={{ fontSize: 13, lineHeight: 1, opacity: drawer === id ? 1 : 0.7 }}>{g}</span>
-                  {l}
-                </Pill>
-              ))}
-            </>
-          )}
-          <VSep />
-          <IconBtn onClick={() => dateIdx > 0 && A.setDate(dates[dateIdx - 1]!)} title="Previous day" style={{ borderRadius: 12, border: 0, background: 'var(--color-neutral-200)', fontSize: 15 }}>
-            ‹
-          </IconBtn>
-          <IconBtn onClick={() => dateIdx < dates.length - 1 && A.setDate(dates[dateIdx + 1]!)} title="Next day" style={{ borderRadius: 12, border: 0, background: 'var(--color-neutral-200)', fontSize: 15 }}>
-            ›
-          </IconBtn>
-          <span style={{ fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{dayLabel(m.iso())}</span>
           <span style={{ flex: 1 }} />
-          <span className={s.originNote}>{hint}</span>
-          <Pill small onClick={() => setPlanOpen((v) => !v)} style={{ fontWeight: 700 }}>
-            {planOpen ? 'Hide ▴' : 'Show ▾'}
-          </Pill>
+          <button
+            className={s.tool}
+            style={{ background: 'var(--color-neutral-200)', color: 'var(--color-text)', fontSize: 15 }}
+            title="Previous day"
+            onClick={() => dateIdx > 0 && A.setDate(dates[dateIdx - 1]!)}
+          >
+            ‹
+          </button>
+          <button
+            className={s.tool}
+            style={{ background: 'var(--color-neutral-200)', color: 'var(--color-text)', fontSize: 15 }}
+            title="Next day"
+            onClick={() => dateIdx < dates.length - 1 && A.setDate(dates[dateIdx + 1]!)}
+          >
+            ›
+          </button>
+          <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{dayLabel(m.iso())}</span>
         </div>
+      </div>
 
-        {/* the selection, editable right here — never a modal */}
-        {(selItem || selSpace || selWall || selRoad) && (
-          <div className={s.chromeRow} style={{ gap: 9 }}>
+      <div className={s.modelWrap} style={{ position: 'relative' }}>
+        {isDraft ? <DraftCanvas ref={draftRef} getScene={getScene} /> : <LiveCanvas getScene={getScene} />}
+
+        {/* first question: how does the space begin? */}
+        {!site.established && isDraft && (
+          <div className={s.establish}>
+            <div className={s.estCard}>
+              <h3 className={s.estTitle}>Build your space</h3>
+              <p className={s.estNote}>
+                {hotel?.short || 'This hotel'} is bare ground. Choose how the geometry begins — the walls, roads and
+                scale tools appear as you need them, and everything stays editable.
+              </p>
+              <div className={s.routes}>
+                <label className={s.route}>
+                  <em>
+                    <Glyph icon="page" size={17} />
+                  </em>
+                  <span>
+                    <b>Trace a floor plan</b>
+                    <i>{hits.length ? hits[0]!.title + ' — Praxis has this on file' : 'Upload the hotel’s event-space PDF or any plan image, then trace over it'}</i>
+                  </span>
+                  <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => void onUpload(e.target.files?.[0])} />
+                </label>
+                <button className={s.route} onClick={() => void pullMap()} disabled={!scene.hotelGeo || pulling}>
+                  <em>
+                    <Glyph icon="map" size={17} />
+                  </em>
+                  <span>
+                    <b>{pulling ? 'Pulling the map…' : 'Pull the real map'}</b>
+                    <i>{scene.hotelGeo ? 'Aerial OpenStreetMap around the hotel, already to scale' : 'No coordinates for this hotel yet'}</i>
+                  </span>
+                </button>
+                <button
+                  className={s.route}
+                  onClick={() => {
+                    A.establish2(m)
+                    A.setDraftTool('wall')
+                  }}
+                >
+                  <em>
+                    <Glyph icon="pencil" size={17} />
+                  </em>
+                  <span>
+                    <b>Draw it by hand</b>
+                    <i>Blank ground, wall tool in hand — trace the walls yourself</i>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {!site.established && !isDraft && (
+          <div className={s.establish} style={{ pointerEvents: 'none' }}>
+            <div className={s.estCard} style={{ pointerEvents: 'auto' }}>
+              <h3 className={s.estTitle}>Nothing standing yet</h3>
+              <p className={s.estNote}>This hotel has no space built. Build is where it begins — trace or pull the geometry, and Run stands it up.</p>
+              <Pill tone="primary" onClick={() => A.setStage('build')}>
+                Go to Build
+              </Pill>
+            </div>
+          </div>
+        )}
+
+        {/* LEFT TOOL RAIL: only this stage's tools, label under icon */}
+        {isDraft && site.established && stage === 'build' && (
+          <div className={s.rail}>
+            <button className={s.tile} aria-pressed={fly === 'plan'} onClick={() => setFly(fly === 'plan' ? null : 'plan')} title="The floor plan under your drawing — upload, replace, or pull the real map">
+              <Glyph icon="page" size={18} />
+              Plan
+            </button>
+            <button className={s.tile} aria-pressed={ui.dtool === 'cal'} onClick={() => setTool('cal')} title="Set the scale — two clicks on a known distance">
+              <Glyph icon="ruler" size={18} />
+              Scale
+            </button>
+            <button className={s.tile} aria-pressed={ui.dtool === 'wall'} onClick={() => setTool('wall')} title="Trace the walls">
+              <Glyph icon="wall" size={18} />
+              Walls
+            </button>
+            <button className={s.tile} aria-pressed={ui.dtool === 'road'} onClick={() => setTool('road')} title="Draw roads — bends and side streets welcome">
+              <Glyph icon="road" size={18} />
+              Roads
+            </button>
+            <button className={s.tile} aria-pressed={ui.dtool === 'space'} onClick={() => setTool('space')} title="Drag where a queue will stand">
+              <Glyph icon="queue" size={18} />
+              Zones
+            </button>
+          </div>
+        )}
+        {isDraft && site.established && stage === 'fill' && (
+          <div className={s.rail}>
+            <button className={s.tile} onClick={populate} title="Place the day's schedule — greeters, desks, pick-ups — automatically">
+              <Glyph icon="sparkle" size={18} />
+              Populate
+            </button>
+            {(
+              [
+                ['furn', 'Furniture', 'table'],
+                ['sign', 'Signs', 'sign'],
+                ['people', 'People', 'person'],
+                ['veh', 'Vehicles', 'bus'],
+              ] as const
+            ).map(([id, l, ic]) => (
+              <button key={id} className={s.tile} aria-pressed={fly === 'suite' && ui.psuite === id} onClick={() => openSuite(id)} title={l}>
+                <Glyph icon={ic} size={18} />
+                {l}
+              </button>
+            ))}
+            <button className={`${s.tile} ${s.tileTop}`} aria-pressed={fly === 'custom'} onClick={() => setFly(fly === 'custom' ? null : 'custom')} title="Add your own item">
+              <span style={{ fontSize: 17, lineHeight: '18px', fontWeight: 700 }}>＋</span>
+              Custom
+            </button>
+          </div>
+        )}
+
+        {/* the Plan flyout: the ground under the drawing */}
+        {isDraft && site.established && stage === 'build' && fly === 'plan' && (
+          <div className={s.flyout}>
+            <div className={s.flyTitle}>The plan under your drawing</div>
+            <label className={s.flyItem}>
+              <span className={s.flyG} style={{ background: 'var(--color-accent)' }}>
+                <Glyph icon="page" size={14} />
+              </span>
+              <span>
+                <span className={s.flyL}>{site.underlay ? 'Replace the floor plan' : 'Upload a floor plan'}</span>
+                <span className={s.flySub} style={{ display: 'block' }}>PDF or image — trace over it</span>
+              </span>
+              <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => void onUpload(e.target.files?.[0])} />
+            </label>
+            <button className={s.flyItem} onClick={() => void pullMap()} disabled={!scene.hotelGeo || pulling}>
+              <span className={s.flyG} style={{ background: 'var(--color-accent-2)' }}>
+                <Glyph icon="map" size={14} />
+              </span>
+              <span>
+                <span className={s.flyL}>{pulling ? 'Pulling…' : site.map ? 'Refresh the real map' : 'Pull the real map'}</span>
+                <span className={s.flySub} style={{ display: 'block' }}>Aerial OpenStreetMap, to scale</span>
+              </span>
+            </button>
+            {site.underlay && (
+              <button className={s.flyItem} onClick={() => A.setUnderlay2(m, null)}>
+                <span className={s.flyG} style={{ background: 'var(--color-neutral-500)' }}>✕</span>
+                <span className={s.flyL}>Remove the underlay</span>
+              </button>
+            )}
+            <div style={{ borderTop: '1px solid var(--color-neutral-200)', margin: '8px 0', paddingTop: 9, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Stepper label="Wall height" value={dim(site.wallH, units)} size="sm" onMinus={() => A.setWallH(m, site.wallH - 0.25)} onPlus={() => A.setWallH(m, site.wallH + 0.25)} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+              <Stepper label="Front drive" value={dim(frame.kerb, units)} size="sm" onMinus={() => A.setFrame(m, { kerb: Math.max(3, frame.kerb - 1) })} onPlus={() => A.setFrame(m, { kerb: Math.min(40, frame.kerb + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+              <Stepper label="Main road" value={dim(frame.street, units)} size="sm" onMinus={() => A.setFrame(m, { street: Math.max(4, frame.street - 1) })} onPlus={() => A.setFrame(m, { street: Math.min(30, frame.street + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+              <Pill small onClick={() => A.setUnits(units === 'ft' ? 'm' : 'ft')} title="Switch units">
+                Working in {units === 'ft' ? 'feet' : 'metres'}
+              </Pill>
+            </div>
+            {hits.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', lineHeight: 1.45 }}>
+                On file: {hits[0]!.title} —{' '}
+                <a href={hits[0]!.src} target="_blank" rel="noreferrer">
+                  open it
+                </a>{' '}
+                and upload the page you want to trace.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* the armed category's suite: human names, real sizes */}
+        {isDraft && site.established && stage === 'fill' && fly === 'suite' && (
+          <div className={s.flyout}>
+            <div className={s.flyTitle}>{suite.l} — click one, then click the floor</div>
+            {suite.items.map((it) => {
+              const on = ui.ptool?.t === it.t && ui.ptool?.kind === suite.kind
+              return (
+                <button key={it.t} className={s.flyItem} aria-pressed={on} onClick={() => A.armTool(on ? null : { ...it, kind: suite.kind })}>
+                  <span className={s.flyG} style={{ background: on ? suite.hex : suite.hex + '33', color: on ? '#fff' : suite.hex }}>
+                    {it.g}
+                  </span>
+                  <span>
+                    <span className={s.flyL} style={on ? { color: 'var(--color-accent)' } : undefined}>{it.l}</span>
+                    {it.sub && <span className={s.flySub} style={{ display: 'block' }}>{it.sub}</span>}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* your own item: name it, place it */}
+        {isDraft && site.established && stage === 'fill' && fly === 'custom' && (
+          <div className={s.flyout}>
+            <div className={s.flyTitle}>Your own item</div>
+            <input
+              className={inputClass}
+              style={{ width: '100%', marginBottom: 8, background: 'var(--color-bg)' }}
+              placeholder="Name it — e.g. Piano"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') placeCustom()
+              }}
+              aria-label="Custom item name"
+            />
+            <button className={s.finish} style={{ marginTop: 0 }} onClick={placeCustom}>
+              Place it on the floor
+            </button>
+            <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 8, lineHeight: 1.45 }}>
+              It lands as a box you can move, rotate and duplicate like anything else.
+            </div>
+          </div>
+        )}
+
+        {/* RIGHT INSPECTOR: the selection's properties, or the stage's checklist */}
+        {isDraft && site.established && anySel && (
+          <div className={s.inspector}>
+            <div className={s.inspTitle}>Selected</div>
             {selItem && (
               <>
-                <span className={s.itemTile}>{SUITES.find((x) => x.kind === selItem.kind)?.items.find((y) => y.t === selItem.t)?.g || '◻'}</span>
-                <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>{selItem.l}</span>
-                <Stepper value={`${selItem.rot || 0}°`} size="sm" onMinus={() => A.rotateItem2(m, selItem.id, -15)} onPlus={() => A.rotateItem2(m, selItem.id, 15)} numStyle={{ minWidth: 42, fontSize: 12.5 }} title="Rotate" />
-                <Pill small onClick={() => A.duplicateItem2(m, selItem.id)} style={{ fontWeight: 700 }}>
-                  Duplicate
-                </Pill>
-                <Pill tone="soft" small onClick={() => A.deleteItem2(m, selItem.id)} title="Delete or Backspace">
-                  Remove ⌫
-                </Pill>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{selItem.l}</div>
+                <div className={s.checkSub} style={{ marginBottom: 11 }}>drag it on the floor to move it</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-neutral-700)' }}>Rotate</span>
+                  <Stepper value={`${selItem.rot || 0}°`} size="sm" onMinus={() => A.rotateItem2(m, selItem.id, -15)} onPlus={() => A.rotateItem2(m, selItem.id, 15)} numStyle={{ minWidth: 42, fontSize: 12.5 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 7 }}>
+                  <Pill small onClick={() => A.duplicateItem2(m, selItem.id)} style={{ flex: 1, justifyContent: 'center', fontWeight: 700 }}>
+                    Duplicate
+                  </Pill>
+                  <Pill tone="soft" small onClick={() => A.deleteItem2(m, selItem.id)} style={{ flex: 1, justifyContent: 'center' }} title="Delete or Backspace">
+                    Remove
+                  </Pill>
+                </div>
               </>
             )}
             {selSpace && (
               <>
-                <input className={inputClass} style={{ minWidth: 150, fontWeight: 700, background: 'var(--color-bg)' }} value={selSpace.l} placeholder="Space name" onChange={(e) => A.renameSpace2(m, selSpace.id, e.target.value)} aria-label="Space name" />
-                <Stepper label="Width" value={dim(selSpace.w, units)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { w: Math.max(2, selSpace.w - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { w: selSpace.w + 1 })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
-                <Stepper label="Depth" value={dim(selSpace.d, units)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { d: Math.max(2, selSpace.d - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { d: selSpace.d + 1 })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
-                <Stepper label="Floor" value={String(selSpace.lvl || 0)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { lvl: Math.max(0, (selSpace.lvl || 0) - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { lvl: (selSpace.lvl || 0) + 1 })} numStyle={{ minWidth: 32, fontSize: 12.5 }} />
-                <Pill tone="soft" small onClick={() => A.deleteSpace2(m, selSpace.id)} title="Delete or Backspace">
-                  Remove ⌫
+                <input className={inputClass} style={{ width: '100%', fontWeight: 700, background: 'var(--color-bg)', marginBottom: 9 }} value={selSpace.l} placeholder="Zone name" onChange={(e) => A.renameSpace2(m, selSpace.id, e.target.value)} aria-label="Zone name" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 9 }}>
+                  <Stepper label="Width" value={dim(selSpace.w, units)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { w: Math.max(2, selSpace.w - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { w: selSpace.w + 1 })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+                  <Stepper label="Depth" value={dim(selSpace.d, units)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { d: Math.max(2, selSpace.d - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { d: selSpace.d + 1 })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+                  <Stepper label="Floor" value={String(selSpace.lvl || 0)} size="sm" onMinus={() => A.patchSpace2(m, selSpace.id, { lvl: Math.max(0, (selSpace.lvl || 0) - 1) })} onPlus={() => A.patchSpace2(m, selSpace.id, { lvl: (selSpace.lvl || 0) + 1 })} numStyle={{ minWidth: 32, fontSize: 12.5 }} />
+                </div>
+                <Pill tone="soft" small onClick={() => A.deleteSpace2(m, selSpace.id)} style={{ width: '100%', justifyContent: 'center' }} title="Delete or Backspace">
+                  Remove
                 </Pill>
               </>
             )}
             {selRoad && (
               <>
-                <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>
-                  Road · {dim(wallLength(selRoad), units)}
-                </span>
-                <Stepper label="Width" value={dim(selRoad.w, units)} size="sm" onMinus={() => A.patchRoad(m, selRoad.id, { w: Math.max(3, selRoad.w - 1) })} onPlus={() => A.patchRoad(m, selRoad.id, { w: Math.min(30, selRoad.w + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
-                <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>Drag it to move · drag a corner to bend it</span>
-                <Pill tone="soft" small onClick={() => A.deleteRoad(m, selRoad.id)} title="Delete or Backspace">
-                  Remove ⌫
+                <div style={{ fontWeight: 800, fontSize: 14 }}>Road · {dim(wallLength(selRoad), units)}</div>
+                <div className={s.checkSub} style={{ marginBottom: 11 }}>drag it to move · drag a corner to bend it</div>
+                <div style={{ marginBottom: 9 }}>
+                  <Stepper label="Width" value={dim(selRoad.w, units)} size="sm" onMinus={() => A.patchRoad(m, selRoad.id, { w: Math.max(3, selRoad.w - 1) })} onPlus={() => A.patchRoad(m, selRoad.id, { w: Math.min(30, selRoad.w + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
+                </div>
+                <Pill tone="soft" small onClick={() => A.deleteRoad(m, selRoad.id)} style={{ width: '100%', justifyContent: 'center' }} title="Delete or Backspace">
+                  Remove
                 </Pill>
               </>
             )}
             {selWall && (
               <>
-                <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>
-                  Wall · {dim(wallLength(selWall), units)} · {selWall.pts.length} points
-                </span>
-                <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>Drag it to move · drag a corner to reshape</span>
-                <Pill tone="soft" small onClick={() => A.deleteWall(m, selWall.id)} title="Delete or Backspace">
-                  Remove ⌫
+                <div style={{ fontWeight: 800, fontSize: 14 }}>Wall · {dim(wallLength(selWall), units)}</div>
+                <div className={s.checkSub} style={{ marginBottom: 11 }}>{selWall.pts.length} points · drag a corner to reshape</div>
+                <Pill tone="soft" small onClick={() => A.deleteWall(m, selWall.id)} style={{ width: '100%', justifyContent: 'center' }} title="Delete or Backspace">
+                  Remove
                 </Pill>
               </>
             )}
           </div>
         )}
-
-        {showPop && (
-          <div className={s.chromeRow} style={{ gap: 9 }}>
-            <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>✦ The builder has this day scheduled.</span>
-            <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>
-              Populate the plan with its people, desks and signs — everything stays editable.
-            </span>
-            <Pill
-              small
-              on
-              onClick={() => {
-                A.importDerived2(m)
-                setPopSeen(popKey)
-              }}
-            >
-              ✦ Populate
-            </Pill>
-            <Pill small onClick={() => setPopSeen(popKey)}>
-              Not now
-            </Pill>
+        {isDraft && site.established && !anySel && stage === 'build' && ui.dtool === 'select' && (
+          <div className={s.inspector}>
+            <div className={s.inspTitle}>Build your space</div>
+            {(
+              [
+                ['Floor plan', planDone, site.underlay ? 'Traced over your upload' : site.map ? 'The real map, to scale' : 'Optional — the Plan tool uploads one', 1],
+                ['Scale', scaleDone, scaleDone ? 'Set from a known distance' : 'Scale tool: two clicks on a known length', 2],
+                ['Walls', wallsDone, wallsDone ? `${site.walls.length} traced · height ${dim(site.wallH, units)}` : 'Trace them over the plan', 3],
+                ['Roads', site.roads.length > 0, site.roads.length ? `${site.roads.length} drawn — bends and side streets` : 'Optional — for queuing vehicles', 4],
+                ['Queue zones', site.spaces.length > 0, site.spaces.length ? `${site.spaces.length} placed` : 'Where lines will stand', 5],
+              ] as const
+            ).map(([l, done, sub, n]) => (
+              <div key={l} className={s.check}>
+                <span
+                  className={s.checkDot}
+                  style={done ? { background: 'var(--color-accent-2)', color: '#fff' } : { border: '2px solid var(--color-neutral-400)', color: 'var(--color-neutral-600)' }}
+                >
+                  {done ? '✓' : n}
+                </span>
+                <span>
+                  <span className={s.checkL} style={{ display: 'block' }}>{l}</span>
+                  <span className={s.checkSub}>{sub}</span>
+                </span>
+              </div>
+            ))}
+            <button className={s.finish} onClick={() => A.setStage('fill')}>
+              Finish build → Fill
+            </button>
+          </div>
+        )}
+        {isDraft && site.established && !anySel && stage === 'fill' && !ui.ptool && (
+          <div className={s.inspector}>
+            <div className={s.inspTitle}>Fill the space</div>
+            <div className={s.checkSub} style={{ lineHeight: 1.5, marginBottom: 10 }}>
+              {site.items.length
+                ? `${site.items.length} thing${site.items.length === 1 ? '' : 's'} placed. Click any of them to move, rotate or remove it.`
+                : 'Populate places the day’s schedule automatically — or pick a category on the left and click the floor.'}
+            </div>
+            <button className={s.finish} onClick={() => A.setStage('run')}>
+              Run the day →
+            </button>
           </div>
         )}
 
-        {site.established && drawer === 'layers' && (
-          <div className={s.chromeRow} style={{ gap: 6 }}>
+        {/* layers, in Run, on the canvas edge */}
+        {stage === 'run' && site.established && (
+          <div className={s.layersCard}>
+            <div className={s.inspTitle} style={{ marginBottom: 4 }}>Layers</div>
             {(
               [
                 ['delegates', 'Delegates'],
                 ['volunteers', 'Volunteers'],
                 ['vehicles', 'Vehicles'],
                 ['queues', 'Queue lanes'],
-                ['zones', 'Spaces'],
+                ['zones', 'Zones'],
                 ['labels', 'Labels'],
               ] as const
             ).map(([id, l]) => {
@@ -231,210 +478,73 @@ export function FlowPlanner() {
           </div>
         )}
 
-        {site.established && drawer === 'place' && (
-          <div className={s.chromeRow}>
-            <Pill tone="soft" onClick={() => A.importDerived2(m)} title="The day's greeters, pick-ups, desk staff, desks and signs become editable objects — placed logically, or lined up by the kerb until the scene exists">
-              ✦ Populate from the builder
-            </Pill>
-            <VSep />
-            {SUITES.map((su) => {
-              const on = suite.id === su.id
-              return (
-                <button key={su.id} className={s.suite} style={on ? { background: su.hex, color: '#fff' } : undefined} onClick={() => A.setSuite(su.id)}>
-                  <span className={s.suiteG} style={{ background: on ? 'rgba(255,255,255,.24)' : su.hex }}>
-                    {su.items[0]!.g}
-                  </span>
-                  {su.l}
-                </button>
-              )
-            })}
-            <VSep />
-            {suite.items.map((it) => {
-              const on = ui.ptool?.t === it.t && ui.ptool?.kind === suite.kind
-              const hx = suite.hex
-              return (
-                <button
-                  key={it.t}
-                  className={s.item}
-                  style={{ background: on ? hx + '1f' : 'var(--color-bg)', color: on ? 'var(--color-text)' : 'var(--color-neutral-700)', borderColor: on ? hx : 'var(--color-neutral-300)' }}
-                  onClick={() => A.armTool(on ? null : { ...it, kind: suite.kind })}
-                  aria-pressed={on}
-                >
-                  <span className={s.itemG} style={{ background: on ? hx : hx + '26', color: on ? '#fff' : hx }}>
-                    {it.g}
-                  </span>
-                  {it.l}
-                  <span className={s.itemSub}>{it.sub}</span>
-                </button>
-              )
-            })}
+        {/* dead ends answer back */}
+        {callout && isDraft && (
+          <div className={s.callout}>
+            <span>
+              <span style={{ display: 'block', fontWeight: 800, fontSize: 12.5 }}>Nothing to place yet</span>
+              <span style={{ display: 'block', fontSize: 11.5, color: '#c3c6cd' }}>{callout}</span>
+            </span>
+            <button
+              className={s.calloutGo}
+              onClick={() => {
+                setCallout(null)
+                A.setView('builder')
+              }}
+            >
+              Open Schedule builder
+            </button>
+            <button className={s.calloutGo} style={{ background: '#33373d', color: '#c3c6cd' }} onClick={() => setCallout(null)}>
+              ✕
+            </button>
+          </div>
+        )}
+        {ui.pendingUp && isDraft && (
+          <div className={s.callout} style={{ top: callout ? 78 : 16 }}>
+            <span>
+              <span style={{ display: 'block', fontWeight: 800, fontSize: 12.5 }}>{ui.pendingUp.name}</span>
+              <span style={{ display: 'block', fontSize: 11.5, color: '#c3c6cd' }}>{ui.pendingUp.note}</span>
+            </span>
+            <button className={s.calloutGo} style={{ background: '#33373d', color: '#c3c6cd' }} onClick={() => A.setPendingUpload(null)}>
+              Dismiss
+            </button>
           </div>
         )}
 
-        {site.established && drawer === 'plans' && (
-          <div className={s.chromeRow} style={{ gap: 7 }}>
-            <label className={s.uploadPlan} data-has={site.underlay ? 'true' : undefined} title="Upload a floor plan (PDF or image)">
-              {site.underlay ? 'Replace the plan' : 'Upload plan'}
-              <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => void onUpload(e.target.files?.[0])} />
-            </label>
-            {site.underlay && (
-              <Pill small onClick={() => A.setUnderlay2(m, null)}>
-                Remove underlay
-              </Pill>
-            )}
-            <Pill small onClick={() => void pullMap()} disabled={!scene.hotelGeo || pulling}>
-              {pulling ? 'Pulling tiles…' : site.map ? 'Refresh the map' : 'Pull the real map'}
-            </Pill>
-            <VSep />
-            <Stepper label="Wall height" value={dim(site.wallH, units)} size="sm" onMinus={() => A.setWallH(m, site.wallH - 0.25)} onPlus={() => A.setWallH(m, site.wallH + 0.25)} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
-            <Stepper label="Front drive" value={dim(frame.kerb, units)} size="sm" onMinus={() => A.setFrame(m, { kerb: Math.max(3, frame.kerb - 1) })} onPlus={() => A.setFrame(m, { kerb: Math.min(40, frame.kerb + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
-            <Stepper label="Road" value={dim(frame.street, units)} size="sm" onMinus={() => A.setFrame(m, { street: Math.max(4, frame.street - 1) })} onPlus={() => A.setFrame(m, { street: Math.min(30, frame.street + 1) })} numStyle={{ minWidth: 44, fontSize: 12.5 }} />
-            <Pill small onClick={() => A.setUnits(units === 'ft' ? 'm' : 'ft')} title="Switch units">
-              {units === 'ft' ? 'Feet' : 'Metres'}
-            </Pill>
-            {hits.length > 0 && (
-              <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', flex: '1 1 200px', lineHeight: 1.4 }}>
-                On file: {hits[0]!.title} —{' '}
-                <a href={hits[0]!.src} target="_blank" rel="noreferrer">
-                  open it
-                </a>{' '}
-                and upload the page you want to trace.
-              </span>
-            )}
-          </div>
-        )}
-
-        {ui.pendingUp && (
-          <div className={s.finder}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexWrap: 'wrap' }}>
-              <span className={s.hitBadge}>READ</span>
-              <span style={{ flex: 1, minWidth: 180 }}>
-                <span style={{ display: 'block', fontWeight: 700, fontSize: 13.5, letterSpacing: '-.01em' }}>{ui.pendingUp.name}</span>
-                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-neutral-600)', marginTop: 2 }}>{ui.pendingUp.note}</span>
-              </span>
-              <Pill small onClick={() => A.setPendingUpload(null)}>
-                Dismiss
-              </Pill>
-            </div>
+        {/* view cluster, bottom-right on the canvas */}
+        {isDraft && site.established && (
+          <div className={s.zoom}>
+            <button className={s.tool} style={{ background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)' }} title="Underlay opacity" onClick={() => draftRef.current?.cycleOpacity()}>
+              <Glyph icon="sun" size={15} />
+            </button>
+            <button className={s.tool} style={{ background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)', fontSize: 16, fontWeight: 700 }} title="Zoom in" onClick={() => draftRef.current?.zoomBy(1.4)}>
+              ＋
+            </button>
+            <button className={s.tool} style={{ background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)', fontSize: 16, fontWeight: 700 }} title="Zoom out" onClick={() => draftRef.current?.zoomBy(1 / 1.4)}>
+              −
+            </button>
+            <button className={s.tool} style={{ background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)', width: 'auto', padding: '0 12px', fontSize: 12, fontWeight: 700, borderRadius: 999 }} title="Fit the site" onClick={() => draftRef.current?.fitNow()}>
+              Fit
+            </button>
           </div>
         )}
       </div>
 
-      {planOpen && (
-        <>
-          <div className={s.modelWrap} style={{ position: 'relative' }}>
-            {isDraft ? <DraftCanvas ref={draftRef} getScene={getScene} /> : <LiveCanvas getScene={getScene} />}
-            {/* nothing is drawn until the site is real */}
-            {!site.established && isDraft && (
-              <div className={s.establish}>
-                <div className={s.estCard}>
-                  <h3 className={s.estTitle}>Build your space</h3>
-                  <p className={s.estNote}>
-                    {hotel?.short || 'This hotel'} is bare ground. Choose how the geometry begins — the walls, roads
-                    and scale tools appear as you need them, and everything stays editable.
-                  </p>
-                  <div className={s.routes}>
-                    <label className={s.route}>
-                      <em>
-                        <Glyph icon="page" size={17} />
-                      </em>
-                      <span>
-                        <b>Trace a floor plan</b>
-                        <i>{hits.length ? hits[0]!.title + ' — Praxis has this on file' : 'Upload the hotel’s event-space PDF or any plan image, then trace over it'}</i>
-                      </span>
-                      <input type="file" accept="image/*,application/pdf" hidden onChange={(e) => void onUpload(e.target.files?.[0])} />
-                    </label>
-                    <button className={s.route} onClick={() => void pullMap()} disabled={!scene.hotelGeo || pulling}>
-                      <em>
-                        <Glyph icon="map" size={17} />
-                      </em>
-                      <span>
-                        <b>{pulling ? 'Pulling the map…' : 'Pull the real map'}</b>
-                        <i>{scene.hotelGeo ? 'Aerial OpenStreetMap around the hotel, already to scale' : 'No coordinates for this hotel yet'}</i>
-                      </span>
-                    </button>
-                    <button className={s.route} onClick={() => A.establish2(m)}>
-                      <em>
-                        <Glyph icon="pencil" size={17} />
-                      </em>
-                      <span>
-                        <b>Draw it by hand</b>
-                        <i>Blank ground, wall tool in hand — trace the walls yourself</i>
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {!site.established && !isDraft && (
-              <div className={s.establish} style={{ pointerEvents: 'none' }}>
-                <div className={s.estCard} style={{ pointerEvents: 'auto' }}>
-                  <h3 className={s.estTitle}>Nothing standing yet</h3>
-                  <p className={s.estNote}>This hotel has no space built. Draft is where it begins — trace or pull the geometry, and Go live stands it up.</p>
-                  <Pill tone="primary" onClick={() => A.setPmode('plan')}>
-                    Go to Draft
-                  </Pill>
-                </div>
-              </div>
-            )}
-          </div>
-          {!isDraft && (
-            <div className={s.clockBar}>
-              <Pill on={ui.playing} onClick={A.togglePlay} style={{ flex: 'none', fontWeight: 700 }} title="Play the day">
-                {ui.playing ? 'Pause' : 'Play the day'}
-              </Pill>
-              <span className={s.clock}>{clockOf(ui.mins)}</span>
-              <input type="range" min={360} max={1350} step={5} value={ui.mins} onChange={(e) => A.scrub(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 180, height: 40 }} aria-label="Time of day" />
-              {[10, 60, 300].map((v) => (
-                <Pill key={v} small on={ui.speed === v} onClick={() => A.setSpeed(v)} style={{ fontSize: 10.5 }}>
-                  ×{v}
-                </Pill>
-              ))}
-            </div>
-          )}
-        </>
+      {/* the transport: Run's timeline */}
+      {stage === 'run' && (
+        <div className={s.clockBar}>
+          <Pill on={ui.playing} onClick={A.togglePlay} style={{ flex: 'none', fontWeight: 700 }} title="Play the day">
+            {ui.playing ? 'Pause' : 'Play the day'}
+          </Pill>
+          <span className={s.clock}>{clockOf(ui.mins)}</span>
+          <input type="range" min={360} max={1350} step={5} value={ui.mins} onChange={(e) => A.scrub(Number(e.target.value))} style={{ flex: '1 1 auto', minWidth: 180, height: 40 }} aria-label="Time of day" />
+          {[10, 60, 300].map((v) => (
+            <Pill key={v} small on={ui.speed === v} onClick={() => A.setSpeed(v)} style={{ fontSize: 10.5 }}>
+              ×{v}
+            </Pill>
+          ))}
+        </div>
       )}
     </div>
-  )
-}
-
-/** The drafting tools: drawn icons, colour-coded per class. */
-function DraftTools({ draftRef }: { draftRef: React.RefObject<DraftCanvasHandle | null> }) {
-  const m = useModel()
-  const cur = m.ui.dtool
-  const set = (id: 'select' | 'wall' | 'road' | 'space' | 'cal') => {
-    A.setDraftTool(m.ui.dtool === id && id !== 'select' ? 'select' : id)
-    draftRef.current?.clearTool()
-  }
-  return (
-    <>
-      <T icon="arrow" hex="#2f4bd8" title="Select and move" on={cur === 'select'} onClick={() => set('select')} />
-      <span className={s.grp}>Build</span>
-      <T icon="wall" hex="#33373d" title="Wall — trace the walls" on={cur === 'wall'} onClick={() => set('wall')} />
-      <T icon="road" hex="#57534c" title="Road — bends and side streets welcome" on={cur === 'road'} onClick={() => set('road')} />
-      <T icon="queue" hex="#0f8f86" title="Queue space — drag where people will stand" on={cur === 'space'} onClick={() => set('space')} />
-      <T icon="ruler" hex="#c67139" title="Scale — two clicks on a known distance" on={cur === 'cal'} onClick={() => set('cal')} />
-      <span className={s.grp}>Fill</span>
-      <T icon="sparkle" hex="#7a8a5e" title="Populate from the builder — the day's people, desks and signs" on={false} onClick={() => A.importDerived2(m)} />
-      <span className={s.grp}>View</span>
-      <T icon="sun" hex="#6b6a67" title="Underlay opacity" on={false} onClick={() => draftRef.current?.cycleOpacity()} />
-      <button className={s.tool} style={{ background: '#6b6a671f', color: '#6b6a67', fontSize: 16, fontWeight: 700 }} title="Zoom in" onClick={() => draftRef.current?.zoomBy(1.4)}>
-        ＋
-      </button>
-      <button className={s.tool} style={{ background: '#6b6a671f', color: '#6b6a67', fontSize: 16, fontWeight: 700 }} title="Zoom out" onClick={() => draftRef.current?.zoomBy(1 / 1.4)}>
-        −
-      </button>
-      <button className={s.tool} style={{ background: '#6b6a671f', color: '#6b6a67', width: 'auto', padding: '0 12px', fontSize: 12, fontWeight: 700, borderRadius: 999 }} title="Fit the site" onClick={() => draftRef.current?.fitNow()}>
-        Fit
-      </button>
-    </>
-  )
-}
-
-function T({ icon, hex, title, on, onClick }: { icon: string; hex: string; title: string; on: boolean; onClick: () => void }) {
-  return (
-    <button className={s.tool} style={{ background: on ? hex : hex + '1f', color: on ? '#fff' : hex }} title={title} onClick={onClick} aria-pressed={on}>
-      <Glyph icon={icon} size={17} />
-    </button>
   )
 }

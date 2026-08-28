@@ -408,6 +408,7 @@ export interface SiteV2 {
   spaces: SpaceV2[]
   items: ItemV2[]
   frame: SiteFrame
+  scaled?: 1 // the planner set a real scale (calibrated, or from the georeferenced map)
 }
 
 export type DraftTool = 'select' | 'wall' | 'road' | 'space' | 'cal'

@@ -87,6 +87,7 @@ export interface Ui {
   setup: boolean
   hotelCard: { name: string; top: number } | null
   drawer: Drawer
+  stage: 'build' | 'fill' | 'run' // the planner's one progression
   dtool: DraftTool
   ptool: PlanTool | null
   psuite: string

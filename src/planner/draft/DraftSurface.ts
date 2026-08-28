@@ -97,7 +97,7 @@ const STYLE = `
   user-select:none;-webkit-user-select:none}
 .px-draft .ui2{position:absolute;pointer-events:none;inset:0}
 .px-draft .ui2>*{pointer-events:auto}
-.px-draft .scale{position:absolute;left:13px;top:13px;pointer-events:none;display:flex;
+.px-draft .scale{position:absolute;left:13px;bottom:13px;pointer-events:none;display:flex;
   align-items:flex-end;gap:11px;padding:9px 13px;border-radius:14px;
   background:var(--color-bg,#fff);box-shadow:0 4px 14px rgba(20,24,32,.16)}
 .px-draft .scale b{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.02em}
@@ -107,6 +107,13 @@ const STYLE = `
   border-bottom:2px solid currentColor}
 .px-draft .attr{position:absolute;right:13px;top:56px;pointer-events:none;font-size:9.5px;
   padding:4px 8px;z-index:2;border-radius:8px;background:rgba(255,255,255,.86);color:#4e535b}
+.px-draft .commit{position:absolute;display:flex;align-items:center;gap:8px;padding:7px 8px 7px 13px;
+  border-radius:12px;background:rgba(29,32,37,.94);color:#fff;box-shadow:0 8px 28px rgba(20,24,32,.3);
+  font-size:12px;font-weight:700;white-space:nowrap;z-index:5}
+.px-draft .commit button{height:34px;border:0;border-radius:9px;padding:0 13px;cursor:pointer;
+  font:inherit;font-weight:800;font-size:12px}
+.px-draft .commit button.ok{background:var(--color-accent,#2f4bd8);color:#fff}
+.px-draft .commit button.no{background:#33373d;color:#c3c6cd}
 .px-draft .hint{position:absolute;left:50%;bottom:11px;transform:translateX(-50%);pointer-events:none;
   max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;font-size:11.5px;
   font-weight:700;padding:7px 13px;border-radius:999px;white-space:nowrap;
@@ -153,6 +160,7 @@ export class DraftSurface {
   private pop: Pop | null = null
   private draft: [number, number][] | null = null // the wall or road being drawn
   private draftKind: 'wall' | 'road' = 'wall'
+  private _uiHtml = ''
   private cursor: { x: number; z: number } | null = null
   private cal: { a?: { x: number; z: number }; b?: { x: number; z: number } } | null = null
   private underlayOp = 0.5
@@ -1000,12 +1008,33 @@ export class DraftSurface {
         <div><i>Scale</i><div class="bar" style="width:${barPx.toFixed(0)}px"></div></div>
         <b>${ftLab} · 1:${ratio}</b></div>`
     if (s.site.map) ui += `<div class="attr">© OpenStreetMap contributors</div>`
+    // the drawing contract: a live chip with a Done button — never a silent Enter
+    if (this.draft && this.draft.length) {
+      const road = this.draftKind === 'road'
+      let len = 0
+      for (let i = 1; i < this.draft.length; i++) {
+        const a = this.draft[i - 1]!
+        const b = this.draft[i]!
+        len += Math.hypot(b[0] - a[0], b[1] - a[1])
+      }
+      const lab = s.units === 'm' ? Math.round(len) + ' m' : Math.round(len * 3.28084) + ' ft'
+      const [lx, lz] = this.draft[this.draft.length - 1]!
+      const px = Math.max(10, Math.min((this.W || 600) - 330, this.tx(lx) + 18))
+      const py = Math.max(10, Math.min((this.H || 400) - 64, this.ty(lz) - 56))
+      const can = this.draft.length >= 2
+      ui += `<div class="commit" style="left:${px.toFixed(0)}px;top:${py.toFixed(0)}px">
+        <span>${road ? 'Road' : 'Wall'} · ${lab} · ${this.draft.length} point${this.draft.length === 1 ? '' : 's'}</span>
+        ${can ? '<button class="ok" data-dc="ok">✓ Done</button>' : '<span style="font-weight:600;color:#c3c6cd">click the next point</span>'}
+        <button class="no" data-dc="no">Esc</button></div>`
+    }
     const hint = s.place
       ? `Click to place ${esc(s.place.l)} · hold Alt to keep placing`
-      : s.tool === 'wall'
+      : s.tool === 'wall' || s.tool === 'road'
         ? this.draft
-          ? 'Click along the walls · Enter or double-click to finish · Esc to cancel'
-          : 'Click to start a wall run — trace right over the plan'
+          ? `Click along the ${this.draftKind === 'road' ? 'road — bends welcome' : 'walls'} · ✓ Done commits it · Esc cancels`
+          : s.tool === 'road'
+            ? 'Click to start a road — click again for each bend, start on a road for a side street'
+            : 'Click to start a wall run — trace right over the plan'
         : s.tool === 'space'
           ? 'Drag a rectangle where a queue will stand'
           : s.tool === 'cal'
@@ -1023,7 +1052,20 @@ export class DraftSurface {
         <button class="g" data-c="no">Cancel</button></div>`
     }
     if (this.pop) ui += this.menu(s, CL, this.pop)
+    // rebuild the overlay only when it actually changed — buttons stay stable
+    // under the 400ms tick, so a click can never land on a replaced node
+    if (ui === this._uiHtml) return
+    this._uiHtml = ui
     this.ui.innerHTML = ui
+
+    const dOk = this.ui.querySelector<HTMLButtonElement>('[data-dc=ok]')
+    if (dOk) dOk.onclick = () => this.finishWall()
+    const dNo = this.ui.querySelector<HTMLButtonElement>('[data-dc=no]')
+    if (dNo)
+      dNo.onclick = () => {
+        this.draft = null
+        this.draw()
+      }
 
     const cd = this.ui.querySelector<HTMLInputElement>('#cald')
     if (cd) {

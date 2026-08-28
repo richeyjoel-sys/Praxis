@@ -20,6 +20,17 @@ export const setPmode = (pmode: 'plan' | 'live') =>
   S().set((u) => {
     u.pmode = pmode
     u.ptool = null
+    if (pmode === 'live') u.stage = 'run'
+    else if (u.stage === 'run') u.stage = 'build'
+  })
+/** The planner's one progression: Build → Fill → Run. Run is the live model. */
+export const setStage = (st: 'build' | 'fill' | 'run') =>
+  S().set((u) => {
+    u.stage = st
+    u.pmode = st === 'run' ? 'live' : 'plan'
+    u.ptool = null
+    u.drawer = null
+    if (st !== 'build') u.dtool = 'select'
   })
 export const setMins = (mins: number) => S().set((u) => void (u.mins = mins))
 export const scrub = (mins: number) =>
@@ -310,7 +321,8 @@ export const setWallH = (m: Model, h: number) => patchSite2(m, { wallH: Math.max
 export const setFrame = (m: Model, p: Partial<SiteFrame>) =>
   patchSite2(m, { frame: { ...m.site2().frame, ...p } })
 export const setUnderlay2 = (m: Model, u: PlanUnderlay | null) => patchSite2(m, { underlay: u, established: true })
-export const setMap2 = (m: Model, map: MapPull | null) => patchSite2(m, { map, established: true })
+export const setMap2 = (m: Model, map: MapPull | null) =>
+  patchSite2(m, map ? { map, established: true, scaled: 1 } : { map, established: true })
 export const establish2 = (m: Model) => patchSite2(m, { established: true })
 
 export function addRoad(m: Model, pts: [number, number][]) {
@@ -454,6 +466,7 @@ export function calibrate2(m: Model, p: { factor: number; anchorX: number; ancho
       w: +Math.max(20, site.frame.w * f).toFixed(1),
       d: +Math.max(14, site.frame.d * f).toFixed(1),
     },
+    scaled: 1,
   })
 }
 
