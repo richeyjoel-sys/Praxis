@@ -180,17 +180,6 @@ export const SUITES: Suite[] = [
   },
 ]
 
-/** The placeholder interior spaces a hotel without a floor plan starts with. */
-export const ROOMS_IN = [
-  { id: 'ball', l: 'Ballroom A', sub: 'holding when the kerb backs up', x: 2.5, y: 4, w: 24, h: 44, tone: 'quiet' as const },
-  { id: 'lobby', l: 'Main Lobby', sub: 'entrance · welcome desk', x: 28.5, y: 4, w: 43, h: 48, tone: 'lit' as const },
-  { id: 'foyer', l: 'Level 2 Foyer', sub: 'lifts to the street', x: 73.5, y: 4, w: 24, h: 29, tone: 'lit' as const },
-  { id: 'lifts', l: 'Lifts', sub: '', tone: 'furn' as const },
-]
-export const ROOMS_OUT = [
-  { id: 'kerb', l: 'Front Drive · Kerbside', sub: '', tone: 'kerb' as const },
-  { id: 'street', l: 'Harbor Drive', sub: '', tone: 'street' as const },
-]
 /** Coach bays as a percentage across the site width. */
 export const BAYS = [
   { l: 'Bay 1', x: 18 },

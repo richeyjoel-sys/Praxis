@@ -219,12 +219,12 @@ function Cascade({ x, m }: { x: Move; sh: Shift; m: Model }) {
       {isOpen(5) && (
         <div className={s.stepBody}>
           <div className={s.row} style={{ paddingBottom: 2 }}>
-            {[{ id: '', l: 'No queue' }, ...m.rooms().filter((r) => r.tone !== 'street').map((r) => ({ id: r.id, l: r.l }))].map((o) => (
+            {[{ id: '', l: 'No queue' }, ...m.spaces2().map((r) => ({ id: r.id, l: r.l })), { id: 'kerb', l: 'Front drive · kerbside' }].map((o) => (
               <Pill key={o.id} hex={null} on={(x.q || '') === o.id} onClick={() => A.patchMove(m, x, { q: o.id })}>
                 {o.l}
               </Pill>
             ))}
-            <Pill tone="dashed" hex={null} on={false} onClick={() => A.addRoom(m, x)}>
+            <Pill tone="dashed" hex={null} on={false} onClick={() => A.addSpace2(m, undefined, x)}>
               ＋ Space
             </Pill>
             <IconBtn onClick={() => A.openStudio('act')} title="Setup studio">

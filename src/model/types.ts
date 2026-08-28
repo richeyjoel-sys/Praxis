@@ -335,57 +335,111 @@ export interface HotelGeo {
   exact: boolean
 }
 export type Layers = Record<'delegates' | 'volunteers' | 'vehicles' | 'queues' | 'zones' | 'labels', boolean>
-export type PlanToolId = 'select' | 'trace' | 'cal'
+// ══════════════════════════════════════════════════════════════════════════
+// Site model v2 — the planner rework (Aug 2026).
+// One flow: blank → underlay (+scale) → walls → place → live.
+// Everything is in world metres on the ground plane; z runs toward the kerb.
+// ══════════════════════════════════════════════════════════════════════════
 
-export interface Scene {
-  plan: SimPlan
+/** A run of wall drawn with the wall tool: a polyline of [x, z] vertices. */
+export interface Wall {
+  id: string
+  pts: [number, number][]
+}
+
+/** A named region the simulation can queue in — drawn, not implied. */
+export interface SpaceV2 {
+  id: string
+  l: string
+  x: number
+  y: number // z, metres
+  w: number
+  d: number
+  lvl?: number
+}
+
+/** An object placed on the site, at real world coordinates. */
+export interface ItemV2 {
+  id: string
+  kind: ItemKind
+  t: string
+  l: string
+  x: number
+  z: number
+  rot?: number
+  lvl?: number
+  hex?: string | null
+  auto?: 0 | 1 // 1 = derived from the builder, not user-owned
+}
+
+/** A pulled OSM composite, georeferenced so tracing over it is to scale. */
+export interface MapPull {
+  src: string
+  mpp: number // metres per pixel
+  px: number // where the hotel sits inside the composite, pixels
+  py: number
+  w: number
+  h: number
+}
+
+export interface SiteFrame {
+  w: number // ground width shown
+  d: number // building ground depth (kerb starts at z = d)
+  kerb: number
+  street: number
+}
+
+export interface SiteV2 {
+  v: 2
+  established: boolean
+  underlay: PlanUnderlay | null
+  map: MapPull | null
+  walls: Wall[]
+  wallH: number // metres — the "how tall are the walls" answer
+  spaces: SpaceV2[]
+  items: ItemV2[]
+  frame: SiteFrame
+}
+
+export type DraftTool = 'select' | 'wall' | 'space' | 'cal'
+export interface Selection {
+  kind: 'item' | 'wall' | 'space'
+  id: string
+}
+
+/** The scene the two planner surfaces read every frame (v2). */
+export interface SceneV2 {
+  mode: 'draft' | 'live'
+  site: SiteV2
+  frame: SiteFrame // resolved: grown to hold the walls
   mins: number
   hotelName: string
   cover: Record<string, number>
   roleHex: Record<string, string>
-  queueRoom: string
-  items: PlacedItem[]
-  derived: PlacedItem[]
-  roomNames: Record<string, string>
+  plan: SimPlan
+  derived: ItemV2[] // what the builder decided, world-positioned
+  spaceNames: Record<string, string>
   layers: Layers
-  mode: 'plan' | 'live'
-  tool: PlanTool | null
-  underlay: PlanUnderlay | null
-  level: number
-  roomLevels: Record<string, number>
-  itemPick: string | null
-  sitePick: string | null
   units: 'ft' | 'm'
-  established: boolean
+  tool: DraftTool
+  place: PlanTool | null // armed object, wins over tool
+  sel: Selection | null
+  level: number
   hotelGeo: HotelGeo | null
-  hotelMeta: HotelMeta
-  planHits: PlanHit[]
-  planTool: PlanToolId
-  // callbacks
-  onItemPick: (id: string | null) => void
-  onRoom: (id: string, p: RoomGeom) => void
-  onItem: (id: string, p: Partial<PlacedItem>) => void
-  onPlace: (tool: PlanTool, room: string | null, x: number, y: number) => void
-  onPick: (id: string | null) => void
-  onNeedPlan: () => void
+  // callbacks — every one dispatches a named action
+  onSelect: (sel: Selection | null) => void
+  onMoveItem: (id: string, x: number, z: number) => void
+  onRotateItem: (id: string, d: number) => void
+  onDuplicateItem: (id: string) => void
+  onPatchWall: (id: string, pts: [number, number][]) => void
+  onAddWall: (pts: [number, number][]) => void
+  onAddSpace: (r: { x: number; y: number; w: number; d: number }) => void
+  onPatchSpace: (id: string, p: Partial<SpaceV2>) => void
+  onRenameSpace: (id: string, l: string) => void
+  onDeleteSel: () => void
+  onPlace: (tool: PlanTool, x: number, z: number) => void
   onPlaced: () => void
-  onTrace: (r: { x: number; y: number; w: number; d: number }) => void
   onCalibrate: (p: { factor: number; anchorX: number; anchorZ: number }) => void
-  onRename: (id: string, l: string) => void
-  onRoomLevel: (id: string, d: number) => void
-  onRemoveRoom: (id: string) => void
-  onImport: () => void
-  onOwn: (id: string) => void
-  onDelete: () => void
-  onDuplicate: () => void
-  onRotate: (d: number) => void
-  onEstablish: (p: {
-    siteW: number
-    siteD: number
-    road: number
-    drive: number
-    bays: number
-    rooms: string[] | null
-    map: { mpp: number } | null
-  }) => void
+  onOwn: (id: string) => void // adopt a derived object
+  onMap: (m: MapPull) => void // a pulled map becomes part of the site
 }

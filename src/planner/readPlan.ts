@@ -29,12 +29,20 @@ async function readPdf(file: File) {
 function showUnderlay(m: Model, src: string, name: string) {
   const img = new Image()
   img.onload = () => {
-    const wM = m.site().w
-    A.patchSite(m, { plan: { src, name, wM, hM: +(wM * (img.height / img.width)).toFixed(2), ar: img.height / img.width, ox: 0, oy: 0 } })
+    const wM = m.frame2().w
+    A.setUnderlay2(m, {
+      src,
+      name,
+      wM,
+      hM: +(wM * (img.height / img.width)).toFixed(2),
+      ar: img.height / img.width,
+      ox: 0,
+      oy: 0,
+    })
     A.setPendingUpload(null)
     A.setView('planner')
     A.setPmode('plan')
-    A.setDrawer('space')
+    A.setDraftTool('wall') // the plan is down — the next step is tracing its walls
   }
   img.onerror = () => A.setPendingUpload({ name, src: null, failed: true, note: 'That file could not be read as an image here.' })
   img.src = src
@@ -48,7 +56,7 @@ export async function readPlanFile(m: Model, f: File) {
     try {
       const r = await readPdf(f)
       showUnderlay(m, r.src, f.name)
-      A.setPendingUpload({ name: f.name, src: r.src, note: `Read page 1 of ${r.pages} at ${r.px}. Incorporate it as the traced underlay, then size the spaces over it.` })
+      A.setPendingUpload({ name: f.name, src: r.src, note: `Read page 1 of ${r.pages} at ${r.px}. It is on the canvas — set the scale, then trace the walls over it.` })
     } catch {
       A.setPendingUpload({
         name: f.name,

@@ -6,7 +6,7 @@ import { useStore } from './store'
 import type { Model } from '@/model/select'
 import type { Shift } from '@/model/library'
 import { ICON_BY, SWATCH } from '@/model/library'
-import type { Act, Dir, PlacedItem, PlanTool, RoomGeom, Site, SignType, Transport, Role, ActType, HotelMeta, EventMeta } from '@/model/types'
+import type { Act, Dir, DraftTool, ItemV2, MapPull, PlanTool, PlanUnderlay, Selection, SignType, SiteFrame, SiteV2, SpaceV2, Transport, Role, ActType, HotelMeta, EventMeta, Wall } from '@/model/types'
 import { uid } from '@/lib/ids'
 
 const S = () => useStore.getState()
@@ -296,133 +296,175 @@ export function shiftDate(m: Model, iso: string, drop: boolean) {
     }
   })
 }
+// ---- site v2: blank → underlay → walls → place → live ----
 
-// ---- site & rooms ----
-export function patchSite(m: Model, p: Partial<Site>) {
+/** Write a patch onto the hotel's site, migrating a legacy save on first touch. */
+export function patchSite2(m: Model, p: Partial<SiteV2>) {
   const nm = m.hotelName()
-  const cur = m.site()
+  const cur = m.site2()
   S().mutate((d) => {
-    d.sites[nm] = { ...(d.sites[nm] || {}), w: cur.w, d: cur.d, kerb: cur.kerb, street: cur.street, seeded: true, ...p }
+    d.sites2[nm] = { ...cur, ...p }
   })
 }
-export function patchRoom(m: Model, id: string, p: RoomGeom) {
-  const site = m.site()
-  const cur = site.rooms || {}
-  if (p.w != null) p = { ...p, w: Math.max(2, p.w) }
-  if (p.d != null) p = { ...p, d: Math.max(2, p.d) }
-  patchSite(m, { rooms: { ...cur, [id]: { ...(cur[id] || {}), ...p } } })
+export const setWallH = (m: Model, h: number) => patchSite2(m, { wallH: Math.max(2, Math.min(12, h)) })
+export const setFrame = (m: Model, p: Partial<SiteFrame>) =>
+  patchSite2(m, { frame: { ...m.site2().frame, ...p } })
+export const setUnderlay2 = (m: Model, u: PlanUnderlay | null) => patchSite2(m, { underlay: u, established: true })
+export const setMap2 = (m: Model, map: MapPull | null) => patchSite2(m, { map, established: true })
+export const establish2 = (m: Model) => patchSite2(m, { established: true })
+
+export function addWall(m: Model, pts: [number, number][]) {
+  if (pts.length < 2) return
+  const w: Wall = { id: uid('w'), pts }
+  patchSite2(m, { walls: [...m.site2().walls, w] })
+  A_select({ kind: 'wall', id: w.id })
 }
-export function addRoom(m: Model, forMove?: Act) {
+export function patchWall(m: Model, id: string, pts: [number, number][]) {
+  patchSite2(m, { walls: m.site2().walls.map((w) => (w.id === id ? { ...w, pts } : w)) })
+}
+export function deleteWall(m: Model, id: string) {
+  patchSite2(m, { walls: m.site2().walls.filter((w) => w.id !== id) })
+  A_select(null)
+}
+
+export function addSpace2(m: Model, r?: { x: number; y: number; w: number; d: number }, forMove?: Act): string {
+  const site = m.site2()
   const id = uid('z')
-  S().mutate((d) => {
-    d.xRooms.push({ id, l: 'New space', sub: '', tone: 'quiet', custom: true })
+  const n = site.spaces.length
+  const rect = r || { x: 2 + (n % 3) * 14, y: 2 + Math.floor(n / 3) * 11, w: 12, d: 9 }
+  patchSite2(m, {
+    spaces: [...site.spaces, { id, l: 'New space', ...rect, lvl: m.lvl() }],
+    established: true,
   })
   if (forMove) patchMove(m, forMove, { q: id })
   return id
 }
-export const renameRoom = (id: string, l: string) => S().mutate((d) => void (d.rname[id] = l))
-export function removeRoom(id: string) {
-  S().mutate((d, u) => {
-    d.xRooms = d.xRooms.filter((r) => r.id !== id)
-    d.hidden['room:' + id] = true
-    u.sitePick = null
-  })
+export function patchSpace2(m: Model, id: string, p: Partial<SpaceV2>) {
+  patchSite2(m, { spaces: m.site2().spaces.map((s) => (s.id === id ? { ...s, ...p } : s)) })
 }
-export function addFloor(m: Model) {
-  const next = m.maxLvl() + 1
-  S().mutate((d, u) => {
-    d.floors = next
-    u.lvl = next
-  })
+export const renameSpace2 = (m: Model, id: string, l: string) => patchSpace2(m, id, { l })
+export function deleteSpace2(m: Model, id: string) {
+  patchSite2(m, { spaces: m.site2().spaces.filter((s) => s.id !== id) })
+  A_select(null)
 }
-export const setLevel = (lvl: number) => S().set((u) => void (u.lvl = lvl))
 
-// ---- placed objects ----
-export function placeItem(m: Model, tool: PlanTool, room: string | null, x: number, y: number) {
-  const k = m.actKey()
-  const id = uid('i')
-  const it: PlacedItem = { id, kind: tool.kind, t: tool.t, l: tool.l, room, x, y, hex: tool.kind === 'veh' ? '#5b6470' : null }
-  S().mutate((d, u) => {
-    ;(d.items[k] = d.items[k] || []).push(it)
-    u.ipick = id
-  })
+export function placeItem2(m: Model, tool: PlanTool, x: number, z: number) {
+  const it: ItemV2 = {
+    id: uid('i'),
+    kind: tool.kind,
+    t: tool.t,
+    l: tool.l,
+    x,
+    z,
+    rot: 0,
+    lvl: m.lvl(),
+    hex: tool.kind === 'veh' ? '#5b6470' : null,
+  }
+  patchSite2(m, { items: [...m.site2().items, it], established: true })
+  A_select({ kind: 'item', id: it.id })
 }
-export function patchItem(m: Model, id: string, p: Partial<PlacedItem>) {
-  const k = m.actKey()
-  S().mutate((d) => {
-    const it = (d.items[k] || []).find((x) => x.id === id)
-    if (it) Object.assign(it, p)
-  })
+export function patchItem2(m: Model, id: string, p: Partial<ItemV2>) {
+  patchSite2(m, { items: m.site2().items.map((it) => (it.id === id ? { ...it, ...p } : it)) })
 }
-export function removeItem(m: Model, id: string) {
-  const k = m.actKey()
-  S().mutate((d, u) => {
-    d.items[k] = (d.items[k] || []).filter((x) => x.id !== id)
-    if (u.ipick === id) u.ipick = null
-  })
+export const moveItem2 = (m: Model, id: string, x: number, z: number) => patchItem2(m, id, { x, z })
+export function rotateItem2(m: Model, id: string, delta: number) {
+  const it = m.itemsOf2().find((x) => x.id === id)
+  if (it) patchItem2(m, id, { rot: ((it.rot || 0) + delta + 360) % 360 })
 }
-export function duplicateItem(m: Model, id: string) {
-  const it = m.itemsOf().find((x) => x.id === id)
+export function duplicateItem2(m: Model, id: string) {
+  const it = m.itemsOf2().find((x) => x.id === id)
   if (!it) return
-  const k = m.actKey()
-  const nid = uid('i')
-  const copy: PlacedItem = { ...it, id: nid, x: (it.x || 0) + (it.room ? 6 : 2), y: it.y }
-  S().mutate((d, u) => {
-    ;(d.items[k] = d.items[k] || []).push(copy)
-    u.ipick = nid
-  })
+  const copy: ItemV2 = { ...it, id: uid('i'), x: it.x + 1.5, z: it.z + 1 }
+  patchSite2(m, { items: [...m.site2().items, copy] })
+  A_select({ kind: 'item', id: copy.id })
 }
-export function rotateItem(m: Model, id: string, delta: number) {
-  const it = m.itemsOf().find((x) => x.id === id)
-  if (it) patchItem(m, id, { rot: ((it.rot || 0) + delta + 360) % 360 })
+export function deleteItem2(m: Model, id: string) {
+  patchSite2(m, { items: m.site2().items.filter((it) => it.id !== id) })
+  A_select(null)
 }
+/** Delete whatever is selected — item, wall or space. */
+export function deleteSelection(m: Model) {
+  const sel = S().ui.sel
+  if (!sel) return
+  if (sel.kind === 'item') deleteItem2(m, sel.id)
+  else if (sel.kind === 'wall') deleteWall(m, sel.id)
+  else deleteSpace2(m, sel.id)
+}
+
 /** The builder's derived objects become real objects you can move and delete. */
-export function importDerived(m: Model) {
-  const der = m.derived()
+export function importDerived2(m: Model) {
+  const der = m.derived2()
   if (!der.length) return
-  const k = m.actKey()
   const made = der.map((d) => ({ ...d, auto: 0 as const, id: uid('i') }))
-  S().mutate((d, u) => {
-    d.items[k] = [...(d.items[k] || []), ...made]
-    u.drawer = 'space'
-  })
+  patchSite2(m, { items: [...m.site2().items, ...made] })
 }
-export function ownDerived(m: Model, id: string) {
-  const d0 = m.derived().find((o) => o.id === id)
+export function ownDerived2(m: Model, id: string) {
+  const d0 = m.derived2().find((o) => o.id === id)
   if (!d0) return
-  const k = m.actKey()
-  const it: PlacedItem = { ...d0, auto: 0, id: uid('i') }
-  S().mutate((d, u) => {
-    ;(d.items[k] = d.items[k] || []).push(it)
-    u.ipick = it.id
+  const it: ItemV2 = { ...d0, auto: 0, id: uid('i') }
+  patchSite2(m, { items: [...m.site2().items, it] })
+  A_select({ kind: 'item', id: it.id })
+}
+
+/** One known distance sets the scale: underlay, walls, spaces and items grow together. */
+export function calibrate2(m: Model, p: { factor: number; anchorX: number; anchorZ: number }) {
+  const site = m.site2()
+  const f = Math.max(0.05, Math.min(20, p.factor))
+  const sx = (v: number) => +(p.anchorX + (v - p.anchorX) * f).toFixed(2)
+  const sz = (v: number) => +(p.anchorZ + (v - p.anchorZ) * f).toFixed(2)
+  const pl = site.underlay
+  patchSite2(m, {
+    walls: site.walls.map((w) => ({ ...w, pts: w.pts.map(([x, z]) => [sx(x), sz(z)] as [number, number]) })),
+    spaces: site.spaces.map((s) => ({
+      ...s,
+      x: sx(s.x),
+      y: sz(s.y),
+      w: +Math.max(1, s.w * f).toFixed(2),
+      d: +Math.max(1, s.d * f).toFixed(2),
+    })),
+    items: site.items.map((it) => ({ ...it, x: sx(it.x), z: sz(it.z) })),
+    underlay: pl?.src
+      ? {
+          ...pl,
+          wM: +((pl.wM || site.frame.w) * f).toFixed(2),
+          hM: +((pl.hM || site.frame.w * 0.7) * f).toFixed(2),
+          ox: sx(pl.ox || 0),
+          oy: sz(pl.oy || 0),
+          calibrated: true,
+        }
+      : pl,
+    frame: {
+      ...site.frame,
+      w: +Math.max(20, site.frame.w * f).toFixed(1),
+      d: +Math.max(14, site.frame.d * f).toFixed(1),
+    },
   })
 }
 
-// ---- plan tools ----
-export const setPlanTool = (id: 'select' | 'trace' | 'cal') =>
+// ---- planner ui ----
+function A_select(sel: Selection | null) {
   S().set((u) => {
-    u.ptl = u.ptl === id ? 'select' : id
+    u.sel = sel
+    if (sel) u.drawer = 'space'
+  })
+}
+export const select = A_select
+export const setDraftTool = (id: DraftTool) =>
+  S().set((u) => {
+    u.dtool = id
     u.ptool = null
   })
-export const armTool = (tool: PlanTool | null) => S().set((u) => void (u.ptool = tool))
+export const armTool = (tool: PlanTool | null) =>
+  S().set((u) => {
+    u.ptool = tool
+    if (tool) u.dtool = 'select'
+  })
 export const setSuite = (id: string) =>
   S().set((u) => {
     u.psuite = id
     u.ptool = null
   })
 export const setDrawer = (d: 'place' | 'space' | 'layers' | 'plans' | null) => S().set((u) => void (u.drawer = d))
-export const pickSite = (id: string | null) =>
-  S().set((u) => {
-    u.sitePick = id
-    u.ipick = null
-    if (id) u.drawer = 'space'
-  })
-export const pickItem = (id: string | null) =>
-  S().set((u) => {
-    u.ipick = id
-    u.sitePick = null
-    if (id) u.drawer = 'space'
-  })
 export const toggleLayer = (id: string) =>
   S().set((u) => {
     const on = (u.layers as Record<string, boolean | undefined>)[id] !== false
@@ -432,3 +474,11 @@ export const setUnits = (units: 'ft' | 'm') => S().set((u) => void (u.units = un
 export const setFinder = (f: null | 'looking' | 'done') => S().set((u) => void (u.finder = f))
 export const setPendingUpload = (p: import('./types').PendingUpload | null) => S().set((u) => void (u.pendingUp = p))
 export const setLogoCols = (cols: string[]) => S().set((u) => void (u.logoCols = cols))
+export function addFloor(m: Model) {
+  const next = m.maxLvl() + 1
+  S().mutate((d, u) => {
+    d.floors = next
+    u.lvl = next
+  })
+}
+export const setLevel = (lvl: number) => S().set((u) => void (u.lvl = lvl))

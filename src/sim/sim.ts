@@ -236,8 +236,12 @@ export function build(plan: SimPlan): Sim {
             const walkStart = k.rel + (j / k.size) * 1.2
             const tKerb = walkStart + k.walkMin
             const tBoard = k.firstKerb + (j / k.size) * k.boardDur
-            if (T < tArr - 1.4 || !mv.qRect) continue
-            if (T < tArr) {
+            // a movement with no queue space skips the queue phases: its people
+            // simply set off from the door at their release time
+            if (!mv.qRect) {
+              if (T < walkStart) continue
+            } else if (T < tArr - 1.4) continue
+            if (mv.qRect && T < tArr) {
               // entering from the building door to the queue
               const d0 = door(mv.room!)
               const sl = slot(mv.qRect, j)
@@ -252,7 +256,7 @@ export function build(plan: SimPlan): Sim {
                 room: mv.queueRoom,
               })
               counts.arriving++
-            } else if (T < walkStart) {
+            } else if (mv.qRect && T < walkStart) {
               // queuing, advancing as cohorts leave
               const releasedBefore = mv.co.filter((z) => z.rel <= T).reduce((t, z) => t + z.size, 0)
               const idx = Math.max(0, gi - releasedBefore)

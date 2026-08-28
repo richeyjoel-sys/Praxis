@@ -2,7 +2,7 @@
 // The 2D drafting surface and the 3D model both read these helpers, so a
 // queue that does not fit a room does not fit in either view.
 
-import type { GeoRoom, RoomDef, Site, Transport } from './types'
+import type { GeoRoom, RoomDef, Transport } from './types'
 
 // ---- units ----
 export const FT = 0.3048
@@ -11,21 +11,6 @@ export const m = (feet: number) => feet * FT
 /** Metres per pixel at a latitude and web-mercator zoom, 256 px tiles. */
 export const mPerPx = (lat: number, zoom: number) =>
   (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom)
-
-// ---- default building envelope ----
-export function defaultSite(): Site {
-  return { w: 64, d: 42, kerb: 7, street: 9, plan: null }
-}
-
-/** Rooms carry real footprints; anything without one gets a sensible default. */
-export function defaultRoom(_id: string, i: number, site: Site): GeoRoom & { rot: number } {
-  const cols = 3
-  const w = (site.w - 4) / cols - 2
-  const d = 12
-  const col = i % cols
-  const row = Math.floor(i / cols)
-  return { x: 2 + col * (w + 2), y: 2 + row * (d + 2), w, d, rot: 0 }
-}
 
 // ---- real hotels ----
 export interface Seed {

@@ -4,6 +4,9 @@
 // Nothing derived is stored: see src/model/select.ts.
 
 import type {
+  DraftTool,
+  Selection,
+  SiteV2,
   Act,
   ActType,
   EventMeta,
@@ -14,7 +17,6 @@ import type {
   MoveVehicle,
   PlacedItem,
   PlanTool,
-  PlanToolId,
   PlanUnderlay,
   Role,
   RoomDef,
@@ -40,7 +42,8 @@ export interface Doc {
   gsz: Record<string, number> // delegates-per-group per movement
   xRooms: RoomDef[]
   rname: Record<string, string> // room renames
-  sites: Record<string, Site> // keyed by hotel name
+  sites: Record<string, Site> // v1, kept only to migrate old saves
+  sites2: Record<string, SiteV2> // keyed by hotel name — the planner rework model
   xActTypes: ActType[]
   atmeta: Record<string, Partial<ActType>> // overrides on built-in activity types
   signs: SignType[]
@@ -84,12 +87,11 @@ export interface Ui {
   setup: boolean
   hotelCard: { name: string; top: number } | null
   drawer: Drawer
-  ptl: PlanToolId
+  dtool: DraftTool
   ptool: PlanTool | null
   psuite: string
   lvl: number
-  sitePick: string | null
-  ipick: string | null
+  sel: Selection | null
   finder: null | 'looking' | 'done'
   pendingUp: PendingUpload | null
   logoCols: string[]

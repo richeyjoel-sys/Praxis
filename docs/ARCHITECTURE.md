@@ -15,9 +15,9 @@ Anything the Schedule builder settles appears in the Flow planner without being 
 | `state/` | The one state tree, `mutate()`/undo, persistence | `Praxis.dc.html` React class |
 | `builder/` | Schedule builder: shift cards, roles, captains, movements, six-step cascade | `Praxis.dc.html` |
 | `studio/` | Setup studio (Activities, Roles, Transport, Signage), Event & dates, logo colour extraction | `Praxis.dc.html` |
-| `planner/` | Planner chrome (modes, drawers, tools, finder, upload, clock bar), `buildScene.ts` (the Scene contract both surfaces read), `readPlan.ts` (PDF/image underlay) | `Praxis.dc.html` |
-| `planner/plan/` | Plan mode: `PlanSurface` — SVG drafting, trace, calibrate, establish flow, OSM pull | `praxis-plan.js` |
-| `planner/live/` | Go live: `LiveModel` — three.js model, camera presets, layers, overlays | `praxis-3d.js` |
+| `planner/` | Planner chrome (Draft/Go live, drawers, selection chips, establish card, clock bar), `buildScene2.ts` (the SceneV2 contract both surfaces read), `readPlan.ts` (PDF/image underlay) | rework, Aug 2026 |
+| `planner/draft/` | Draft mode: `DraftSurface` — SVG drafting with the wall tool, queue spaces, calibrate, OSM pull, direct manipulation | rework |
+| `planner/live/` | Go live: `LiveModel` — three.js; walls extruded from the traced runs, world-positioned objects, select/drag in 3D | `praxis-3d.js`, reworked |
 | `sim/` | Deterministic simulation `build(plan).at(T)` — pure, no DOM, unit-tested | `praxis-sim.js` |
 | `data/` | Event data: hotels, dates, activity groups (generated from the Mucho Matrix workbook), geo, known floor plans, scene defaults | `praxis-data.js`, `praxis-geo.js`, `praxis-plans.js`, `praxis-scene.js` |
 | `ui/` | Shared controls: buttons, steppers, chips, popover, drawer | — |
@@ -28,15 +28,31 @@ prototype's `praxis-data.js`; `scripts/build-data.mjs` (to write, once the Mucho
 workbook is in the repo) will rebuild it from the spreadsheet so the data module is
 reproducible rather than a hand-carried blob.
 
-## The Scene contract
+## The planner: site model v2 — one flow
 
-`buildScene(model)` produces the one object both view surfaces read every frame — the sim
-plan, the placed and derived objects, layers, selection, the plan tool — and the callbacks
-they write back through (`onRoom`, `onItem`, `onPlace`, `onTrace`, `onCalibrate`,
-`onEstablish`, …). Every callback dispatches a named action in `state/actions.ts`. The
-surfaces own nothing but the view: `PlanSurface` and `LiveModel` are imperative classes
-mounted by thin React wrappers (`PlanCanvas`, `LiveCanvas`) that hand them a `getScene()`
-getter, so a re-render never remounts a canvas.
+The planner was rebuilt (28 Aug 2026) around one flow per hotel:
+
+**blank → footprint (upload a plan / pull the map / draw) → walls → places → Go live.**
+
+- Every hotel except Bayfront starts truly blank — ground, kerb, road, nothing else —
+  until a footprint source is chosen. Bayfront's seed (and any old v1 save) migrates
+  automatically in `model/site2.ts`.
+- `SiteV2` (per hotel, `doc.sites2`): an underlay (PDF page / image / georeferenced OSM
+  pull), `walls` as real polylines traced with the wall tool (any angle, 45° snap, live
+  length labels), `wallH` (the "how tall are the walls" answer, default 3.15 m), `spaces`
+  (drawn queue regions the simulation fills — separate from walls), and `items` at world
+  coordinates.
+- Direct manipulation everywhere: click selects, drag moves (items, walls, wall vertices,
+  spaces), corner handles resize, right-click opens the tool menu, ⌫ deletes — in Draft
+  and, for objects, in the 3D view too.
+- Go live extrudes exactly the traced walls (one box per segment at `wallH`) — no
+  placeholder building, no tower.
+
+`buildScene2(model)` produces the `SceneV2` both surfaces read every frame; every callback
+dispatches a named action in `state/actions.ts`. The surfaces own nothing but the view:
+`DraftSurface` and `LiveModel` are imperative classes mounted by thin React wrappers
+(`DraftCanvas`, `LiveCanvas`) that hand them a `getScene()` getter, so a re-render never
+remounts a canvas.
 
 ## State
 
@@ -86,7 +102,7 @@ was on screen. OSM tiles are the exception (cache-first, 30 days).
   1 Greeter per 150, Desk 1–2. The workbook has no volunteer data.
 - Coach capacity 48 seats.
 - Only Hilton Bayfront has real space names; the other eight hotels are placeholders.
-- Wall height is fixed at 3.15 m until the "how tall are the walls" step is built.
+- Wall height defaults to 3.15 m; the Site drawer's "Wall height" stepper sets it per hotel.
 
 ## Dropped from the prototype
 
@@ -102,3 +118,6 @@ numbers live in the movement rows and the header stats).
   it now hit-tests by position.
 - The sim's queue-head offset depended on screen pixels-per-metre; it is now a fixed
   1.6 m (0.6 m on the kerb and street), so the simulation is the same at every zoom.
+- The prototype drew a placeholder building (the "Bayfront everywhere" bug) at every
+  hotel; hotels now start blank, and a movement with no queue space simply sets off from
+  the door instead of queuing in an invented lobby.

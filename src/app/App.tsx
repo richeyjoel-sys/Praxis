@@ -68,8 +68,8 @@ export function App() {
           if (u.setup) return A.closeSetup()
           if (u.view === 'planner') {
             A.armTool(null)
-            A.pickItem(null)
-            A.pickSite(null)
+            A.setDraftTool('select')
+            A.select(null)
           }
         },
       },
@@ -77,14 +77,14 @@ export function App() {
         combo: { key: 'Backspace' },
         run: () => {
           const u = useStore.getState().ui
-          if (u.view === 'planner' && u.ipick) A.removeItem(m, u.ipick)
+          if (u.view === 'planner' && u.sel) A.deleteSelection(m)
         },
       },
       {
         combo: { key: 'Delete' },
         run: () => {
           const u = useStore.getState().ui
-          if (u.view === 'planner' && u.ipick) A.removeItem(m, u.ipick)
+          if (u.view === 'planner' && u.sel) A.deleteSelection(m)
         },
       },
     ],

@@ -2,10 +2,10 @@
 // Constructed in the effect and destroyed in its cleanup, so a StrictMode
 // remount simply creates a fresh instance.
 import { useEffect, useRef } from 'react'
-import type { Scene } from '@/model/types'
+import type { SceneV2 } from '@/model/types'
 import { LiveModel } from './LiveModel'
 
-export function LiveCanvas({ getScene }: { getScene: () => Scene | null }) {
+export function LiveCanvas({ getScene }: { getScene: () => SceneV2 | null }) {
   const ref = useRef<HTMLDivElement>(null)
   // the model reads the scene every frame; keep the latest getter without remounting it
   const sceneRef = useRef(getScene)

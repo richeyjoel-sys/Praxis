@@ -14,32 +14,30 @@ import type {
   GeoRoom,
   Hotel,
   HotelMeta,
+  ItemV2,
   Matrix,
-  PlacedItem,
   Role,
-  Room,
-  RoomDef,
   SignType,
   SimPlan,
-  Site,
+  SiteFrame,
+  SiteV2,
+  SpaceV2,
   Transport,
 } from './types'
 import {
   ACT,
   ACT_ORDER,
-  BAYS,
   DEF_SIGNS,
   DEF_TPORTS,
   ICON_BY,
   ROLES,
-  ROOMS_IN,
-  ROOMS_OUT,
   SEATS,
   SHIFTS,
   shiftOf,
   type Shift,
 } from './library'
-import { SEED, defaultRoom, defaultSite, vehicleBox } from './scene'
+import { vehicleBox } from './scene'
+import { bayXs, migrateSite, resolveFrame } from './site2'
 
 /** A movement as the UI sees it: the matrix group plus every override applied. */
 export interface Move extends Act {
@@ -111,22 +109,20 @@ export interface Model {
   adjKey(sh: Shift, role: string): string
   capKey(sh: Shift, role: string): string
   bayMap(): Record<string, number>
+  shiftNow(): Shift
   live(): LiveMove[]
-  // site
-  seed(): (typeof SEED)[string] | null
-  site(): Site
-  rooms(): Room[]
-  innerRooms(): Room[]
-  roomBox(r: Room, i: number): GeoRoom & { rot: number }
+  // site (v2)
+  site2(): SiteV2
+  frame2(): SiteFrame
+  spaces2(): SpaceV2[]
+  spaceNames(): Record<string, string>
+  itemsOf2(): ItemV2[]
   lvl(): number
-  lvlOf(id: string): number
   maxLvl(): number
-  roomNames(): Record<string, string>
-  roomLevels(): Record<string, number>
   geoRooms(): Record<string, GeoRoom>
   simPlan(): SimPlan
-  itemsOf(): PlacedItem[]
-  derived(): PlacedItem[]
+  defaultQueue(): string
+  derived2(): ItemV2[]
   iconList(): { id: string; l: string; up?: boolean }[]
 }
 
@@ -347,6 +343,7 @@ export function createModel(doc: Doc, ui: Ui, matrix: Matrix): Model {
       })
     return map
   })
+  m.shiftNow = () => shiftOf(ui.mins)
   m.live = memo(() => {
     const t = ui.mins
     const bm = m.bayMap()
@@ -363,146 +360,53 @@ export function createModel(doc: Doc, ui: Ui, matrix: Matrix): Model {
       .filter((x): x is LiveMove => !!x)
   })
 
-  // ---- site ----
-  m.seed = () => SEED[m.hotelName()] || null
-  m.site = memo((): Site => {
+  // ---- site (v2): blank until real ----
+  m.site2 = memo((): SiteV2 => {
     const nm = m.hotelName()
-    const sd = m.seed()
-    const saved = (doc.sites || {})[nm]
-    const grow = sd && (doc.xRooms || []).length ? 10.5 : 0
-    const base: Site = sd
-      ? { ...defaultSite(), w: sd.w, d: sd.d + grow, kerb: sd.kerb, street: sd.street }
-      : defaultSite()
-    // a plan saved before this hotel had a real floor plan keeps its rooms but takes
-    // the published envelope, so the seed is not overridden by stale defaults
-    if (sd && saved && !saved.seeded) {
-      const { w: _w, d: _d, kerb: _k, street: _s, ...rest } = saved
-      return { ...base, ...rest }
-    }
-    return { ...base, ...(saved || {}) }
+    const saved = (doc.sites2 || {})[nm]
+    if (saved) return saved
+    return migrateSite(nm, (doc.sites || {})[nm])
   })
-  m.lvl = () => ui.lvl || 0
-  m.lvlOf = (id) => ((m.site().rooms || {})[id] || {}).lvl || 0
-  m.maxLvl = () => {
-    const rs = Object.values(m.site().rooms || {})
-    return Math.max(doc.floors || 0, ...rs.map((r) => r.lvl || 0))
-  }
-  m.roomBox = (r, i) =>
-    r.w && r.d
-      ? { x: r.x, y: r.y, w: Math.max(2, r.w), d: Math.max(2, r.d), rot: 0 }
-      : defaultRoom(r.id, i, m.site())
-
-  // the interior spaces share the upper band, so adding one re-flows the plan
-  m.rooms = memo((): Room[] => {
-    const rn = doc.rname || {}
-    const named = <T extends RoomDef>(r: T): T => (rn[r.id] ? { ...r, l: rn[r.id]! } : r)
-    // anything traced or dragged carries its own coordinates and is never re-packed
-    const sv0 = m.site().rooms || {}
-    const pin = (list: Room[]): Room[] =>
-      list.map((r) => {
-        const o = sv0[r.id]
-        return o && o.x != null && o.y != null
-          ? { ...r, x: o.x, y: o.y, w: o.w != null ? o.w : r.w, d: o.d != null ? o.d : r.d }
-          : r
-      })
-    const site = m.site()
-    const outBands: Room[] = ROOMS_OUT.map((r) => ({ ...r, x: 0, y: 0, w: site.w, d: r.id === 'kerb' ? site.kerb : site.street }))
-    const sd = m.seed()
-    const extra = (doc.xRooms || []).map(named)
-    if (sd) {
-      const sv = m.site().rooms || {}
-      const clamp = (r: Room): Room => {
-        const o = sv[r.id] || {}
-        return { ...r, w: Math.min(o.w || r.w, sd.w - r.x - 1.5), d: Math.min(o.d || r.d, sd.d - r.y - 1) }
-      }
-      const laid = extra.map((r, i2) => clamp({ ...r, x: 2.5 + i2 * 13, y: sd.d + 1, w: 12, d: 8.5 }))
-      return pin(sd.spaces.map(named).map((r) => clamp(r as Room)).concat(laid)).concat(outBands)
-    }
-    const inner = (ROOMS_IN as RoomDef[]).concat(extra).map(named)
-    const per = inner.length <= 4 ? inner.length : Math.ceil(inner.length / 2)
-    const gap = 1.8
-    const pad = 2.5
-    const availW = site.w - pad * 2
-    const availD = site.d - pad * 2
-    const saved = m.site().rooms || {}
-    const slotW = (availW - gap * (per - 1)) / per
-    const widths = inner.map((r) => Math.min(availW, (saved[r.id] || {}).w || slotW))
-    const rowsOf: number[][] = []
-    let cur: number[] = []
-    let used = 0
-    widths.forEach((w, i2) => {
-      if (cur.length && used + gap + w > availW + 0.01) {
-        rowsOf.push(cur)
-        cur = []
-        used = 0
-      }
-      cur.push(i2)
-      used += (cur.length > 1 ? gap : 0) + w
-    })
-    if (cur.length) rowsOf.push(cur)
-    const rh = (availD - gap * (rowsOf.length - 1)) / rowsOf.length
-    const out: Room[] = []
-    rowsOf.forEach((idxs, ri) => {
-      let cx = pad
-      idxs.forEach((i2) => {
-        const r = inner[i2]!
-        const w = widths[i2]!
-        const d = Math.min(rh, (saved[r.id] || {}).d || rh)
-        out.push({ ...r, x: cx, y: pad + ri * (rh + gap), w, d })
-        cx += w + gap
-      })
-    })
-    return pin(out).concat(outBands)
-  })
-  m.innerRooms = memo(() => m.rooms().filter((r) => r.tone !== 'kerb' && r.tone !== 'street'))
-  m.roomNames = memo(() => {
+  m.frame2 = memo(() => resolveFrame(m.site2()))
+  m.spaces2 = () => m.site2().spaces
+  m.spaceNames = memo(() => {
     const o: Record<string, string> = {}
-    m.rooms().forEach((r) => (o[r.id] = r.l))
+    m.spaces2().forEach((s) => (o[s.id] = s.l))
     o.kerb = 'Front drive'
-    o.street = 'Public road'
     return o
   })
-  m.roomLevels = memo(() => {
-    const o: Record<string, number> = {}
-    const rs = m.site().rooms || {}
-    Object.keys(rs).forEach((k) => (o[k] = rs[k]!.lvl || 0))
-    o.kerb = 0
-    o.street = 0
-    return o
-  })
+  m.itemsOf2 = () => m.site2().items
+  m.lvl = () => ui.lvl || 0
+  m.maxLvl = () => Math.max(doc.floors || 0, ...m.spaces2().map((s) => s.lvl || 0), 0)
 
-  // every space a movement can queue in — the two outdoor bands included, so a
-  // queue on the kerb is measured, not silently skipped
+  // every space a movement can queue in — the kerb included, so a queue on
+  // the kerb is measured, not silently skipped
   m.geoRooms = memo(() => {
-    const site = m.site()
-    const kerbY = site.d + 1
-    const streetY = kerbY + site.kerb + 0.6
-    const headM = 1.6
+    const f = m.frame2()
+    const kerbY = f.d + 1
     const out: Record<string, GeoRoom> = {}
-    m.innerRooms().forEach((r, i) => {
-      out[r.id] = { ...m.roomBox(r, i), headM }
+    m.spaces2().forEach((s) => {
+      out[s.id] = { x: s.x, y: s.y, w: s.w, d: s.d, headM: 1.6 }
     })
-    out.kerb = { x: 1, y: kerbY + 0.4, w: site.w - 2, d: site.kerb - 0.8, headM: 0.6 }
-    out.street = { x: 1, y: streetY + 0.4, w: site.w - 2, d: site.street - 0.8, headM: 0.6 }
+    out.kerb = { x: 1, y: kerbY + 0.4, w: f.w - 2, d: f.kerb - 0.8, headM: 0.6 }
     return out
   })
 
   // ---- the simulation: plan in, world out ----
   m.simPlan = memo((): SimPlan => {
-    const site = m.site()
-    const kerbY = site.d + 1
-    const streetY = kerbY + site.kerb + 0.6
-    const bayXs = BAYS.map((b) => (b.x / 100) * site.w)
+    const f = m.frame2()
+    const kerbY = f.d + 1
+    const streetY = kerbY + f.kerb + 0.6
     return {
       geo: {
         rooms: m.geoRooms(),
-        buildW: site.w,
-        buildD: site.d,
+        buildW: f.w,
+        buildD: f.d,
         kerbY,
-        kerbDepth: site.kerb,
+        kerbDepth: f.kerb,
         streetY,
-        streetDepth: site.street,
-        bays: bayXs,
+        streetDepth: f.street,
+        bays: bayXs(f),
       },
       moves: m
         .acts()
@@ -524,35 +428,54 @@ export function createModel(doc: Doc, ui: Ui, matrix: Matrix): Model {
             vwid: vbox.w,
             vhex: t ? t.hex : '#888',
             vname: t ? t.l : '',
-            queueRoom: x.q || 'lobby',
+            queueRoom: x.q && m.geoRooms()[x.q] ? x.q : m.defaultQueue(),
             walkQueue: m.walkQueue(x),
           }
         })
         .filter((mv) => mv.sizes.reduce((t, v) => t + v, 0) > 0),
     }
   })
-
-  m.itemsOf = () => doc.items[m.actKey()] || []
+  /** Where a movement queues when nothing was chosen: the lobby if one exists, else nowhere. */
+  m.defaultQueue = () => {
+    const sp = m.spaces2()
+    const lobby = sp.find((s) => s.id === 'lobby' || /lobby/i.test(s.l))
+    return lobby ? lobby.id : ''
+  }
 
   // what the builder decided, drawn without being placed by hand:
   // welcome desks from the desk cover, one lollipop per group and one A-frame
-  // per queuing space, laid on a grid sized from how many there are
-  m.derived = memo((): PlacedItem[] => {
-    const out: PlacedItem[] = []
+  // per queuing space, laid on a grid inside the space they serve
+  m.derived2 = memo((): ItemV2[] => {
+    const out: ItemV2[] = []
+    const geo = m.geoRooms()
     const cov = m.cover(shiftOf(ui.mins))
-    for (let i = 0; i < Math.min(4, cov.desk || 0); i++)
-      out.push({ id: '', kind: 'furn', t: 'desk', l: 'Welcome desk', room: 'lobby', x: 16 + i * 21, y: 20, auto: 1 })
+    const lobbyId = m.defaultQueue()
+    const lobby = lobbyId ? geo[lobbyId] : undefined
+    if (lobby)
+      for (let i = 0; i < Math.min(4, cov.desk || 0); i++)
+        out.push({
+          id: '',
+          kind: 'furn',
+          t: 'desk',
+          l: 'Welcome desk',
+          x: lobby.x + (0.16 + i * 0.21) * lobby.w,
+          z: lobby.y + 0.2 * lobby.d,
+          auto: 1,
+        })
     const perRoom: Record<string, string[]> = {}
     m.acts()
       .slice(0, 14)
       .forEach((a2) => {
-        const q = a2.q || 'lobby'
+        const q = a2.q && geo[a2.q] ? a2.q : lobbyId
+        if (!q) return
         perRoom[q] = perRoom[q] || []
         const groups = Math.min(3, m.sizes(a2).length || 1)
         for (let k = 0; k < groups; k++) perRoom[q]!.push('lollipop')
       })
     const LB: Record<string, string> = { lollipop: 'Lollipop sign', aframe: 'A-frame', arrowsign: 'Directional arrow' }
     Object.keys(perRoom).forEach((q) => {
+      const r = geo[q]
+      if (!r) return
       const list = perRoom[q]!.concat(['aframe', 'arrowsign'])
       const cols = Math.max(1, Math.ceil(Math.sqrt(list.length * 1.8)))
       const rows = Math.ceil(list.length / cols)
@@ -564,16 +487,16 @@ export function createModel(doc: Doc, ui: Ui, matrix: Matrix): Model {
           kind: 'sign',
           t: t2,
           l: LB[t2] || 'Sign',
-          room: q,
           auto: 1,
-          x: 8 + (cols === 1 ? 42 : (cx / (cols - 1)) * 84),
-          y: 62 + (rows === 1 ? 0 : (cy / (rows - 1)) * 30),
+          x: r.x + (0.08 + (cols === 1 ? 0.42 : (cx / (cols - 1)) * 0.84)) * r.w,
+          z: r.y + (0.62 + (rows === 1 ? 0 : (cy / (rows - 1)) * 0.3)) * r.d,
         })
       })
     })
     out.forEach((o, i) => (o.id = 'd' + i)) // a stable id, so right-clicking one adopts THAT one
     return out
   })
+
 
   m.iconList = () =>
     (doc.xIcons || [])

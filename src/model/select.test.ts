@@ -98,36 +98,40 @@ describe('model', () => {
       }
   })
 
-  it('Bayfront is seeded with its real spaces', () => {
+  it('Bayfront is seeded with its real spaces and walls', () => {
     const m = model()
-    const names = m.rooms().map((r) => r.l)
+    const names = m.spaces2().map((s) => s.l)
     expect(names).toContain('Indigo Ballroom')
     expect(names).toContain('Main Lobby')
-    expect(m.site().w).toBe(68)
+    expect(m.site2().established).toBe(true)
+    expect(m.site2().walls.length).toBeGreaterThan(0)
+    expect(m.frame2().w).toBe(68)
   })
 
-  it('an unseeded hotel lays its placeholder rooms inside the envelope', () => {
+  it('every other hotel starts completely blank', () => {
     const m = model({}, { hotel: 'Omni San Diego Hotel at the Ballpark' })
-    const site = m.site()
-    m.innerRooms().forEach((r) => {
-      expect(r.x).toBeGreaterThanOrEqual(0)
-      expect(r.x + r.w).toBeLessThanOrEqual(site.w + 0.01)
-      expect(r.y + r.d).toBeLessThanOrEqual(site.d + 0.01)
-    })
+    const site = m.site2()
+    expect(site.established).toBe(false)
+    expect(site.walls).toHaveLength(0)
+    expect(site.spaces).toHaveLength(0)
+    expect(site.items).toHaveLength(0)
+    // and its movements queue nowhere rather than in an invented lobby
+    expect(m.defaultQueue()).toBe('')
   })
 
-  it('the sim plan carries every non-empty movement and the outdoor bands', () => {
+  it('the sim plan carries every non-empty movement and the kerb', () => {
     const m = model()
     const p = m.simPlan()
     expect(p.geo.rooms.kerb).toBeDefined()
-    expect(p.geo.rooms.street).toBeDefined()
     expect(p.moves.length).toBe(m.acts().filter((a) => a.d > 0).length)
     expect(p.geo.bays).toHaveLength(3)
+    // Bayfront movements with no chosen queue fall back to its real lobby
+    expect(p.moves.every((mv) => mv.queueRoom === '' || p.geo.rooms[mv.queueRoom])).toBe(true)
   })
 
   it('derived objects follow the builder: signs per queue, desks per cover', () => {
     const m = model()
-    const d = m.derived()
+    const d = m.derived2()
     expect(d.filter((o) => o.t === 'desk').length).toBe(Math.min(4, m.cover(SHIFTS[0]!).desk))
     expect(d.every((o) => o.auto === 1 && o.id.startsWith('d'))).toBe(true)
   })
