@@ -93,6 +93,7 @@ export interface Ui {
   psuite: string
   lvl: number
   sel: Selection | null
+  msel: Selection[] | null // several things grabbed at once (marquee)
   finder: null | 'looking' | 'done'
   pendingUp: PendingUpload | null
   logoCols: string[]

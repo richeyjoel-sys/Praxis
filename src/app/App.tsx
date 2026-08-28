@@ -77,14 +77,14 @@ export function App() {
         combo: { key: 'Backspace' },
         run: () => {
           const u = useStore.getState().ui
-          if (u.view === 'planner' && u.sel) A.deleteSelection(m)
+          if (u.view === 'planner' && (u.sel || u.msel?.length)) A.deleteSelection(m)
         },
       },
       {
         combo: { key: 'Delete' },
         run: () => {
           const u = useStore.getState().ui
-          if (u.view === 'planner' && u.sel) A.deleteSelection(m)
+          if (u.view === 'planner' && (u.sel || u.msel?.length)) A.deleteSelection(m)
         },
       },
     ],

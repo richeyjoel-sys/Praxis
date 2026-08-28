@@ -435,6 +435,7 @@ export interface SceneV2 {
   tool: DraftTool
   place: PlanTool | null // armed object, wins over tool
   sel: Selection | null
+  msel: Selection[] | null // several things grabbed at once
   level: number
   hotelGeo: HotelGeo | null
   frontage: boolean // this hotel has REAL kerb/bay data (the seed); others draw their own roads
@@ -458,4 +459,5 @@ export interface SceneV2 {
   onMap: (m: MapPull) => void // a pulled map becomes part of the site
   onTool: (t: DraftTool) => void // the surface can put a tool down (Esc with nothing drawing)
   onRotSite: (deltaDeg: number) => void // turn the underlay/map imagery
+  onSelectMany: (sels: Selection[]) => void // a marquee's haul
 }

@@ -8,6 +8,7 @@ import type { Shift } from '@/model/library'
 import { ICON_BY, SWATCH } from '@/model/library'
 import type { Act, Dir, DraftTool, ItemV2, MapPull, PlanTool, PlanUnderlay, Road, Selection, SignType, SiteFrame, SiteV2, SpaceV2, Transport, Role, ActType, HotelMeta, EventMeta, Wall } from '@/model/types'
 import { uid } from '@/lib/ids'
+import { blankSite } from '@/model/site2'
 
 const S = () => useStore.getState()
 
@@ -439,12 +440,35 @@ export function deleteItem2(m: Model, id: string) {
 }
 /** Delete whatever is selected — item, wall or space. */
 export function deleteSelection(m: Model) {
-  const sel = S().ui.sel
+  const u = S().ui
+  const many = u.msel
+  if (many && many.length) {
+    const of = (k: Selection['kind']) => new Set(many.filter((x) => x.kind === k).map((x) => x.id))
+    const it = of('item')
+    const wl = of('wall')
+    const rd = of('road')
+    const sp = of('space')
+    const site = m.site2()
+    patchSite2(m, {
+      items: site.items.filter((x) => !it.has(x.id)),
+      walls: site.walls.filter((x) => !wl.has(x.id)),
+      roads: site.roads.filter((x) => !rd.has(x.id)),
+      spaces: site.spaces.filter((x) => !sp.has(x.id)),
+    })
+    selectMany([])
+    return
+  }
+  const sel = u.sel
   if (!sel) return
   if (sel.kind === 'item') deleteItem2(m, sel.id)
   else if (sel.kind === 'wall') deleteWall(m, sel.id)
   else if (sel.kind === 'road') deleteRoad(m, sel.id)
   else deleteSpace2(m, sel.id)
+}
+/** Start this hotel over: everything drawn and placed goes; Undo brings it back. */
+export function clearSite2(m: Model) {
+  patchSite2(m, blankSite())
+  A_select(null)
 }
 
 /** Populate from the builder: the day's roles, desks and signs become real
@@ -503,10 +527,17 @@ export function calibrate2(m: Model, p: { factor: number; anchorX: number; ancho
 function A_select(sel: Selection | null) {
   S().set((u) => {
     u.sel = sel
+    u.msel = null
     if (sel) u.drawer = 'space'
   })
 }
 export const select = A_select
+/** Several things grabbed at once — a marquee's haul. */
+export const selectMany = (sels: Selection[]) =>
+  S().set((u) => {
+    u.msel = sels.length ? sels : null
+    u.sel = null
+  })
 export const setDraftTool = (id: DraftTool) =>
   S().set((u) => {
     u.dtool = id

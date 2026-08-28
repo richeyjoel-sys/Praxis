@@ -47,6 +47,7 @@ export function FlowPlanner() {
   const selWall = sel?.kind === 'wall' ? site.walls.find((x) => x.id === sel.id) : null
   const selRoad = sel?.kind === 'road' ? site.roads.find((x) => x.id === sel.id) : null
   const anySel = !!(selItem || selSpace || selWall || selRoad)
+  const many = ui.msel && ui.msel.length ? ui.msel : null
 
   const stage: Stage = ui.pmode === 'live' ? 'run' : ui.stage === 'fill' ? 'fill' : 'build'
   const isDraft = stage !== 'run'
@@ -323,6 +324,20 @@ export function FlowPlanner() {
                 and upload the page you want to trace.
               </div>
             )}
+            <button
+              className={s.flyItem}
+              style={{ borderTop: '1px solid var(--color-neutral-200)', borderRadius: '0 0 9px 9px', marginTop: 8, paddingTop: 11 }}
+              onClick={() => {
+                setFly(null)
+                A.clearSite2(m)
+              }}
+            >
+              <span className={s.flyG} style={{ background: '#b8563f' }}>⌫</span>
+              <span>
+                <span className={s.flyL} style={{ color: '#b8563f' }}>Clear everything</span>
+                <span className={s.flySub} style={{ display: 'block' }}>Start this hotel over — Undo brings it back</span>
+              </span>
+            </button>
           </div>
         )}
 
@@ -372,7 +387,30 @@ export function FlowPlanner() {
         )}
 
         {/* RIGHT INSPECTOR: the selection's properties, or the stage's checklist */}
-        {isDraft && site.established && anySel && (
+        {isDraft && site.established && many && (
+          <div className={s.inspector}>
+            <div className={s.inspTitle}>Grabbed</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>
+              {many.length} thing{many.length === 1 ? '' : 's'}
+            </div>
+            <div className={s.checkSub} style={{ marginBottom: 11 }}>
+              {(['item', 'wall', 'road', 'space'] as const)
+                .map((k) => [k, many.filter((x) => x.kind === k).length] as const)
+                .filter(([, n]) => n > 0)
+                .map(([k, n]) => `${n} ${k === 'item' ? 'object' : k === 'space' ? 'zone' : k}${n === 1 ? '' : 's'}`)
+                .join(' · ')}
+            </div>
+            <div style={{ display: 'flex', gap: 7 }}>
+              <Pill tone="soft" small onClick={() => A.deleteSelection(m)} style={{ flex: 1, justifyContent: 'center' }} title="Delete or Backspace">
+                Delete all
+              </Pill>
+              <Pill small onClick={() => A.selectMany([])} style={{ flex: 1, justifyContent: 'center' }}>
+                Let go
+              </Pill>
+            </div>
+          </div>
+        )}
+        {isDraft && site.established && !many && anySel && (
           <div className={s.inspector}>
             <div className={s.inspTitle}>Selected</div>
             {selItem && (
@@ -444,7 +482,7 @@ export function FlowPlanner() {
             )}
           </div>
         )}
-        {isDraft && site.established && !anySel && stage === 'build' && ui.dtool === 'select' && (
+        {isDraft && site.established && !anySel && !many && stage === 'build' && ui.dtool === 'select' && (
           <div className={s.inspector}>
             <div className={s.inspTitle}>Build your space</div>
             {(
@@ -474,7 +512,7 @@ export function FlowPlanner() {
             </button>
           </div>
         )}
-        {isDraft && site.established && !anySel && stage === 'fill' && !ui.ptool && (
+        {isDraft && site.established && !anySel && !many && stage === 'fill' && !ui.ptool && (
           <div className={s.inspector}>
             <div className={s.inspTitle}>Fill the space</div>
             <div className={s.checkSub} style={{ lineHeight: 1.5, marginBottom: 10 }}>

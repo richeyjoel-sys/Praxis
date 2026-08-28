@@ -36,6 +36,7 @@ export function buildScene2(m: Model): SceneV2 {
     tool: ui.dtool,
     place: ui.ptool,
     sel: ui.sel,
+    msel: ui.msel,
     level: m.lvl(),
     hotelGeo: GEO[hotel?.name || ''] || null,
     frontage: !!SEED[hotel?.name || ''],
@@ -62,5 +63,6 @@ export function buildScene2(m: Model): SceneV2 {
     onMap: (map) => A.setMap2(m, map),
     onTool: (t) => A.setDraftTool(t),
     onRotSite: (d) => A.rotSite(m, d),
+    onSelectMany: (sels) => A.selectMany(sels),
   }
 }

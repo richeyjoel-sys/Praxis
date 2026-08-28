@@ -83,6 +83,7 @@ type Down =
   | { mode: 'space'; id: string; p: Pt; x0: number; y0: number; moved?: boolean }
   | { mode: 'size'; id: string; p: Pt; w0: number; d0: number }
   | { mode: 'rubber'; p: Pt }
+  | { mode: 'marquee'; p: Pt }
 interface Pop {
   kind: 'item' | 'space' | 'wall' | 'road' | 'auto'
   id: string
@@ -193,9 +194,12 @@ export class DraftSurface {
         this.alignA = null
         this.draw()
       } else {
-        // nothing drawing, nothing open: Esc puts the tool down
+        // nothing drawing, nothing open: Esc drops the grab, then the tool
         const s = this.S()
-        if (s && s.tool !== 'select') {
+        if (s?.msel?.length) {
+          s.onSelectMany([])
+          this.draw()
+        } else if (s && s.tool !== 'select') {
           s.onTool('select')
           this.draw()
         }
@@ -486,6 +490,12 @@ export class DraftSurface {
         return
       }
       // select tool
+      // Shift-drag grabs several things at once
+      if (e.shiftKey) {
+        this._down = { mode: 'marquee', p }
+        grab()
+        return
+      }
       const it = this.itemAt(p.x, p.z, s)
       if (it) {
         s.onSelect({ kind: 'item', id: it.id })
@@ -587,7 +597,7 @@ export class DraftSurface {
         c.x = d.cx - (p.x - d.p.x)
         c.z = d.cz - (p.z - d.p.z)
         this.draw()
-      } else if (d.mode === 'rubber') {
+      } else if (d.mode === 'rubber' || d.mode === 'marquee') {
         this.draw()
       } else if (d.mode === 'item') {
         d.moved = true
@@ -632,6 +642,28 @@ export class DraftSurface {
         const dd = Math.abs(p.z - d.p.z)
         if (w > 1.2 && dd > 1.2)
           s.onAddSpace({ x: +x.toFixed(2), y: +y.toFixed(2), w: +w.toFixed(2), d: +dd.toFixed(2) })
+      }
+      if (d && d.mode === 'marquee' && s) {
+        const p = this.at(e)
+        const x0 = Math.min(d.p.x, p.x)
+        const x1 = Math.max(d.p.x, p.x)
+        const z0 = Math.min(d.p.z, p.z)
+        const z1 = Math.max(d.p.z, p.z)
+        const inside = (x: number, z: number) => x >= x0 && x <= x1 && z >= z0 && z <= z1
+        const haul: { kind: 'item' | 'wall' | 'road' | 'space'; id: string }[] = []
+        s.site.items.forEach((it2) => {
+          if ((it2.lvl || 0) === s.level && inside(it2.x, it2.z)) haul.push({ kind: 'item', id: it2.id })
+        })
+        s.site.walls.forEach((w2) => {
+          if (w2.pts.some(([x, z]) => inside(x, z))) haul.push({ kind: 'wall', id: w2.id })
+        })
+        s.site.roads.forEach((r2) => {
+          if (r2.pts.some(([x, z]) => inside(x, z))) haul.push({ kind: 'road', id: r2.id })
+        })
+        s.site.spaces.forEach((sp2) => {
+          if ((sp2.lvl || 0) === s.level && inside(sp2.x + sp2.w / 2, sp2.y + sp2.d / 2)) haul.push({ kind: 'space', id: sp2.id })
+        })
+        s.onSelectMany(haul)
       }
       this.svg.style.cursor = 'grab'
       this.draw()
@@ -825,10 +857,12 @@ export class DraftSurface {
       })
     }
 
+    // several things grabbed at once — the marquee's haul highlights everywhere
+    const MS = new Set((s.msel || []).map((q) => q.kind + ':' + q.id))
     // drawn roads: asphalt ribbons with a dashed centreline — bends and side
     // streets, so vehicles can stage and queue away from the kerb
     s.site.roads.forEach((r) => {
-      const on = s.sel?.kind === 'road' && s.sel.id === r.id
+      const on = (s.sel?.kind === 'road' && s.sel.id === r.id) || MS.has('road:' + r.id)
       const hov = this.hover === 'road:' + r.id
       const d = r.pts.map(([x, z], i) => `${i ? 'L' : 'M'} ${X(x)} ${Y(z)}`).join(' ')
       out.push(`<g data-h="road" data-id="${r.id}">
@@ -850,7 +884,7 @@ export class DraftSurface {
     if (L('zones'))
       s.site.spaces.forEach((sp) => {
         if ((sp.lvl || 0) !== s.level) return
-        const on = s.sel?.kind === 'space' && s.sel.id === sp.id
+        const on = (s.sel?.kind === 'space' && s.sel.id === sp.id) || MS.has('space:' + sp.id)
         const hov = this.hover === 'space:' + sp.id
         out.push(`<g data-h="space" data-id="${sp.id}">
           <rect x="${X(sp.x)}" y="${Y(sp.y)}" width="${(sp.w * K).toFixed(1)}" height="${(sp.d * K).toFixed(1)}"
@@ -882,7 +916,7 @@ export class DraftSurface {
     // walls: poché exactly where they were traced
     const wallPx = Math.max(2, 0.24 * K)
     s.site.walls.forEach((w) => {
-      const on = s.sel?.kind === 'wall' && s.sel.id === w.id
+      const on = (s.sel?.kind === 'wall' && s.sel.id === w.id) || MS.has('wall:' + w.id)
       const hov = this.hover === 'wall:' + w.id
       const d = w.pts.map(([x, z], i) => `${i ? 'L' : 'M'} ${X(x)} ${Y(z)}`).join(' ')
       out.push(`<g data-h="wall" data-id="${w.id}">
@@ -903,7 +937,7 @@ export class DraftSurface {
     items.forEach((it) => {
       if ((it.lvl || 0) !== s.level && !it.auto) return
       const cls = CL[it.kind] || CL.furn
-      const on = !it.auto && s.sel?.kind === 'item' && s.sel.id === it.id
+      const on = !it.auto && ((s.sel?.kind === 'item' && s.sel.id === it.id) || MS.has('item:' + it.id))
       out.push(this.symbol(it, it.hex || cls.hex, on, K, c))
     })
 
@@ -941,6 +975,16 @@ export class DraftSurface {
         fill="${c.accent2}" fill-opacity=".14" stroke="${c.accent2}" stroke-width="2" stroke-dasharray="6 4"/>
         <text x="${X(x + w2 / 2)}" y="${(+Y(y + d2 / 2) + 4).toFixed(1)}" text-anchor="middle"
           font-size="12" font-weight="700" fill="${c.accent2}">${ft(w2)} × ${ft(d2)}</text>`)
+    }
+    // the marquee: grab several things at once
+    if (this._down?.mode === 'marquee' && this.cursor) {
+      const d0 = this._down.p
+      const x = Math.min(d0.x, this.cursor.x)
+      const y = Math.min(d0.z, this.cursor.z)
+      const w2 = Math.abs(this.cursor.x - d0.x)
+      const d2 = Math.abs(this.cursor.z - d0.z)
+      out.push(`<rect x="${X(x)}" y="${Y(y)}" width="${(w2 * K).toFixed(1)}" height="${(d2 * K).toFixed(1)}"
+        fill="${c.accent}" fill-opacity=".08" stroke="${c.accent}" stroke-width="1.6" stroke-dasharray="5 4"/>`)
     }
     // the straighten line
     if (this.alignOn && this.alignA) {
@@ -1127,9 +1171,11 @@ export class DraftSurface {
             ? this.cal?.a && !this.cal.b
               ? 'Click the far end of a known distance'
               : 'Click one end of something you know the size of'
-            : s.sel
-              ? 'Drag to move · right-click for tools · ⌫ to delete'
-              : 'Click anything to select it · right-click for tools · scroll to zoom'
+            : s.msel?.length
+              ? `${s.msel.length} grabbed · ⌫ deletes them all · Esc lets go`
+              : s.sel
+                ? 'Drag to move · right-click for tools · ⌫ to delete'
+                : 'Click anything to select it · Shift-drag grabs several · right-click for tools'
     ui += `<div class="hint">${hint}</div>`
     if (this.cal?.b) {
       ui += `<div class="ask"><b>How far is that, really?</b>
