@@ -1,17 +1,19 @@
 .pane {
+  /* the builder runs a size smaller than the rest of the app */
+  --control-h: 30px;
   flex: 0 0 auto;
   min-width: 0;
   background: var(--color-neutral-100);
   border-top: 1px solid var(--color-neutral-200);
-  padding: 10px 16px 18px;
+  padding: 8px 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
 }
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 7px;
   align-items: start;
 }
 @media (max-width: 1100px) {
@@ -44,7 +46,7 @@
   background: var(--color-neutral-200);
   border: 1.5px solid var(--color-neutral-200);
   border-radius: var(--radius-lg);
-  padding: 0 0 9px;
+  padding: 0 0 7px;
 }
 .card[data-open='true'] {
   background: var(--color-neutral-100);
@@ -56,19 +58,19 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 44px;
-  padding: 0 10px;
+  min-height: 36px;
+  padding: 0 9px;
   background: transparent;
   border: none;
 }
 .cardTile {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 9px;
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 12px;
   background: var(--color-neutral-200);
   color: var(--color-neutral-700);
 }
@@ -80,7 +82,7 @@
   display: block;
   font-weight: 700;
   letter-spacing: -0.02em;
-  font-size: 13.5px;
+  font-size: 12.5px;
   line-height: 1.1;
 }
 .cardRange {
@@ -93,12 +95,12 @@
 .roles {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 9px 0;
+  gap: 3px;
+  padding: 4px 7px 0;
 }
 .roleBlock {
   border-radius: 10px;
-  padding: 5px 7px;
+  padding: 4px 6px;
   background: var(--color-accent-100);
   border: 1px solid var(--color-accent-200);
 }
@@ -112,8 +114,8 @@
   gap: 7px;
 }
 .roleDot {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex: none;
   display: grid;
   place-items: center;
@@ -134,9 +136,9 @@
 .roleNum {
   font-weight: 700;
   letter-spacing: -0.02em;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
-  min-width: 20px;
+  min-width: 18px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -147,8 +149,8 @@
   margin-top: 5px;
 }
 .capTile {
-  width: 19px;
-  height: 19px;
+  width: 17px;
+  height: 17px;
   flex: none;
   display: grid;
   place-items: center;
@@ -157,15 +159,15 @@
 }
 
 .moves {
-  margin-top: 7px;
+  margin-top: 5px;
   border-top: 1px solid var(--color-neutral-200);
-  padding-top: 5px;
+  padding-top: 4px;
 }
 .movesHead {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 9px 4px;
+  padding: 0 7px 3px;
 }
 .emptyNote {
   padding: 8px 11px;
@@ -173,15 +175,15 @@
   color: var(--color-neutral-600);
 }
 .addRow {
-  padding: 6px 9px 0;
+  padding: 4px 7px 0;
   display: flex;
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
 }
 .addType {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex: none;
   display: grid;
   place-items: center;
@@ -192,7 +194,7 @@
 
 /* ---- movement ---- */
 .move {
-  padding: 6px 9px 6px 6px;
+  padding: 4px 7px 4px 5px;
   border-left: 3px solid;
   border-top: 1px solid var(--color-neutral-200);
 }
@@ -202,8 +204,8 @@
   gap: 7px;
 }
 .chev {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex: none;
   display: grid;
   place-items: center;
@@ -214,8 +216,8 @@
   padding: 0;
 }
 .actIcon {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex: none;
   display: grid;
   place-items: center;
@@ -228,8 +230,8 @@
   background: transparent;
   flex: none;
   border: none;
-  height: 32px;
-  padding: 0 5px;
+  height: 26px;
+  padding: 0 4px;
   border-radius: 9px;
   display: inline-flex;
   align-items: center;
@@ -238,7 +240,7 @@
 .moveName {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -248,7 +250,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 2px 0 0 27px;
+  padding: 2px 0 0 22px;
 }
 .moveD {
   font-size: 12px;
@@ -277,7 +279,7 @@
 
 /* ---- cascade ---- */
 .cascade {
-  margin: 2px 0 2px 22px;
+  margin: 2px 0 2px 17px;
 }
 .row {
   display: flex;
@@ -295,9 +297,9 @@
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  min-height: 32px;
-  padding: 0 7px;
-  margin-top: 3px;
+  min-height: 26px;
+  padding: 0 6px;
+  margin-top: 2px;
   border-radius: 9px;
   border: none;
   background: transparent;
@@ -338,8 +340,8 @@
 .groupRow {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: 32px;
+  gap: 3px;
+  min-height: 26px;
   border-top: 1px dashed var(--color-neutral-300);
 }
 .groupLabel {
@@ -355,15 +357,15 @@
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 0 0 27px;
+  gap: 3px;
+  padding: 3px 0 0 22px;
 }
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
-  padding: 0 8px;
+  height: 19px;
+  padding: 0 7px;
   border-radius: 999px;
   border: 1px solid var(--color-neutral-300);
   background: var(--color-neutral-100);
@@ -398,8 +400,8 @@
   color: #fff;
 }
 .signG {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex: none;
   display: grid;
   place-items: center;
