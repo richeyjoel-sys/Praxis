@@ -47,6 +47,11 @@ export function FlowPlanner() {
   const selWall = sel?.kind === 'wall' ? site.walls.find((x) => x.id === sel.id) : null
   const selRoad = sel?.kind === 'road' ? site.roads.find((x) => x.id === sel.id) : null
   const [planOpen, setPlanOpen] = useState(true)
+  // offer to stand the builder's day up in the plan — once, never a modal
+  const [popSeen, setPopSeen] = useState<string | null>(null)
+  const popKey = (hotel?.name || '') + '|' + m.iso()
+  const showPop =
+    isDraft && site.established && site.items.length === 0 && popSeen !== popKey && m.populateItems().length > 0
 
   const hint = (() => {
     if (!site.established && isDraft) return 'Pick where the geometry comes from — everything after that is drawn in place'
@@ -92,19 +97,24 @@ export function FlowPlanner() {
               <DraftTools draftRef={draftRef} />
             </>
           )}
-          <VSep />
-          {(
-            [
-              ['place', 'Place', '＋', 'Furniture, signs, people, vehicles'],
-              ['layers', 'Layers', '◍', 'What the model draws'],
-              ['plans', 'Site', '⌗', 'Underlay, ground, floors, units'],
-            ] as const
-          ).map(([id, l, g, title]) => (
-            <Pill key={id} tone="quiet" on={drawer === id} onClick={() => A.setDrawer(drawer === id ? null : id)} title={title}>
-              <span style={{ fontSize: 13, lineHeight: 1, opacity: drawer === id ? 1 : 0.7 }}>{g}</span>
-              {l}
-            </Pill>
-          ))}
+          {/* nothing about placing or layering exists until the site does */}
+          {site.established && (
+            <>
+              <VSep />
+              {(
+                [
+                  ['place', 'Place', '＋', 'Furniture, signs, people, vehicles'],
+                  ['layers', 'Layers', '◍', 'What the model draws'],
+                  ['plans', 'Site', '⌗', 'Underlay, ground, floors, units'],
+                ] as const
+              ).map(([id, l, g, title]) => (
+                <Pill key={id} tone="quiet" on={drawer === id} onClick={() => A.setDrawer(drawer === id ? null : id)} title={title}>
+                  <span style={{ fontSize: 13, lineHeight: 1, opacity: drawer === id ? 1 : 0.7 }}>{g}</span>
+                  {l}
+                </Pill>
+              ))}
+            </>
+          )}
           <VSep />
           <IconBtn onClick={() => dateIdx > 0 && A.setDate(dates[dateIdx - 1]!)} title="Previous day" style={{ borderRadius: 12, border: 0, background: 'var(--color-neutral-200)', fontSize: 15 }}>
             ‹
@@ -173,7 +183,29 @@ export function FlowPlanner() {
           </div>
         )}
 
-        {drawer === 'layers' && (
+        {showPop && (
+          <div className={s.chromeRow} style={{ gap: 9 }}>
+            <span style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>✦ The builder has this day scheduled.</span>
+            <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>
+              Populate the plan with its people, desks and signs — everything stays editable.
+            </span>
+            <Pill
+              small
+              on
+              onClick={() => {
+                A.importDerived2(m)
+                setPopSeen(popKey)
+              }}
+            >
+              ✦ Populate
+            </Pill>
+            <Pill small onClick={() => setPopSeen(popKey)}>
+              Not now
+            </Pill>
+          </div>
+        )}
+
+        {site.established && drawer === 'layers' && (
           <div className={s.chromeRow} style={{ gap: 6 }}>
             {(
               [
@@ -196,7 +228,7 @@ export function FlowPlanner() {
           </div>
         )}
 
-        {drawer === 'place' && (
+        {site.established && drawer === 'place' && (
           <div className={s.chromeRow}>
             <Pill tone="soft" onClick={() => A.importDerived2(m)} title="The day's greeters, pick-ups, desk staff, desks and signs become editable objects — placed logically, or lined up by the kerb until the scene exists">
               ✦ Populate from the builder
@@ -236,7 +268,7 @@ export function FlowPlanner() {
           </div>
         )}
 
-        {drawer === 'plans' && (
+        {site.established && drawer === 'plans' && (
           <div className={s.chromeRow} style={{ gap: 7 }}>
             <label className={s.uploadPlan} data-has={site.underlay ? 'true' : undefined} title="Upload a floor plan (PDF or image)">
               {site.underlay ? 'Replace the plan' : 'Upload plan'}

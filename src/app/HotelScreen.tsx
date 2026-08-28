@@ -5,7 +5,7 @@
 import { useModel } from '@/model/useModel'
 import { useStore } from '@/state/store'
 import * as A from '@/state/actions'
-import { Chip, Micro, Pill } from '@/ui'
+import { Chip, Glyph, Micro, Pill } from '@/ui'
 import { label } from '@/lib/shortcuts'
 import { dayLabel, n } from '@/lib/format'
 import { EventSetup } from '@/studio/EventSetup'
@@ -30,6 +30,13 @@ export function HotelScreen() {
   const showDates = !planMode
   const addr = h.addr || m.meta(h.name).address
   const ev = m.doc.ev
+  const dates = m.dateList()
+  /** The day before or after an ISO date, midday-anchored so timezones can't slip it. */
+  const stepIso = (d: string, dir: 1 | -1) => {
+    const t = new Date(d + 'T12:00:00Z')
+    t.setUTCDate(t.getUTCDate() + dir)
+    return t.toISOString().slice(0, 10)
+  }
 
   return (
     <div className={s.screen}>
@@ -74,19 +81,24 @@ export function HotelScreen() {
             />
           )}
           {ev.name && <span className={s.evName}>{ev.name}</span>}
+          {/* the two workspaces — not chips: each is a different world */}
           {(
             [
-              ['planner', 'Flow planner', '2'],
-              ['builder', 'Schedule builder', '1'],
+              ['planner', 'Flow planner', '2', 'grid'],
+              ['builder', 'Schedule builder', '1', 'clipboard'],
             ] as const
-          ).map(([id, l, key]) => (
-            <Pill key={id} tone="quiet" on={ui.view === id} onClick={() => A.setView(id)} title={`${l} · ${label({ key, meta: true })}`}>
+          ).map(([id, l, key, ic]) => (
+            <button
+              key={id}
+              className={s.ws}
+              aria-pressed={ui.view === id}
+              onClick={() => A.setView(id)}
+              title={`${l} · ${label({ key, meta: true })}`}
+            >
+              <Glyph icon={ic} size={16} />
               {l}
-            </Pill>
+            </button>
           ))}
-          <Pill tone="dashed" on={false} onClick={A.toggleSetup} title="Event name, logo, dates and colours">
-            ＋ Event &amp; dates
-          </Pill>
           <span style={{ flex: 1 }} />
           {showStats && (
             <span className={s.hint}>
@@ -98,11 +110,33 @@ export function HotelScreen() {
         </div>
         {showDates && (
           <div className={s.dates}>
-            {m.dateList().map((d) => (
+            {dates.length > 0 && (
+              <Pill
+                small
+                onClick={() => A.shiftDate(m, stepIso(dates[0]!, -1), false)}
+                title={`Add ${dayLabel(stepIso(dates[0]!, -1), 'pill')} before the first day`}
+              >
+                ＋
+              </Pill>
+            )}
+            {dates.map((d) => (
               <Pill key={d} small on={d === iso} onClick={() => A.setDate(d)}>
                 {dayLabel(d, 'pill')}
               </Pill>
             ))}
+            {dates.length > 0 && (
+              <Pill
+                small
+                onClick={() => A.shiftDate(m, stepIso(dates[dates.length - 1]!, 1), false)}
+                title={`Add ${dayLabel(stepIso(dates[dates.length - 1]!, 1), 'pill')} after the last day`}
+              >
+                ＋
+              </Pill>
+            )}
+            <span style={{ flex: 1 }} />
+            <Pill tone="dashed" small on={false} onClick={A.toggleSetup} title="Event name, logo, dates and colours">
+              ＋ Event &amp; dates
+            </Pill>
           </div>
         )}
         {ui.setup && <EventSetup />}

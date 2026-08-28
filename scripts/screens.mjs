@@ -7,7 +7,9 @@ import { mkdirSync } from 'node:fs'
 const URL = process.env.PRAXIS_URL || 'http://localhost:4173/'
 const HOTEL = 'Omni San Diego Hotel at the Ballpark'
 mkdirSync('screens', { recursive: true })
-const b = await chromium.launch()
+const b = await chromium.launch({
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+})
 const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage()
 const errors = []
 p.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
@@ -23,7 +25,7 @@ await p.screenshot({ path: 'screens/03-cascade.png' })
 await p.click('text=Flow planner')
 await p.waitForTimeout(3000)
 await p.screenshot({ path: 'screens/04-live.png' })
-await p.getByRole('button', { name: 'Plan', exact: true }).click()
+await p.getByRole('button', { name: 'Draft', exact: true }).click()
 await p.waitForTimeout(1200)
 await p.screenshot({ path: 'screens/05-plan.png' })
 
