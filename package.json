@@ -2,7 +2,7 @@
   "name": "praxis",
   "private": true,
   "version": "0.1.0",
-  "description": "Praxis — volunteer coverage and delegate-movement planner for IC26 San Diego hotels",
+  "description": "Praxis \u2014 volunteer coverage and delegate-movement planner for IC26 San Diego hotels",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b",
     "lint": "oxlint src",
-    "screens": "node scripts/screens.mjs"
+    "screens": "node scripts/screens.mjs",
+    "data:build": "python3 scripts/build-data.py"
   },
   "dependencies": {
     "immer": "^10.1.1",

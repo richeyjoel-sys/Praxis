@@ -15,7 +15,10 @@ describe('model', () => {
   it('reads the matrix day for the hotel', () => {
     const m = model()
     expect(m.acts().length).toBeGreaterThan(0)
-    expect(m.day().inHouse).toBe(1932)
+    // in-house is real data now (cumulative arrivals − departures), so assert
+    // its shape, not a hard-coded number that changes with each workbook drop
+    expect(m.day().inHouse).toBeGreaterThan(0)
+    expect(m.day().inHouse).toBeLessThanOrEqual(m.hotel()!.delegates)
   })
 
   it('sorts movements by start time', () => {
