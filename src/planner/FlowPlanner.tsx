@@ -399,6 +399,7 @@ export function FlowPlanner() {
                 .filter(([, n]) => n > 0)
                 .map(([k, n]) => `${n} ${k === 'item' ? 'object' : k === 'space' ? 'zone' : k}${n === 1 ? '' : 's'}`)
                 .join(' · ')}
+              {' — drag any of them and the whole set moves together'}
             </div>
             <div style={{ display: 'flex', gap: 7 }}>
               <Pill tone="soft" small onClick={() => A.deleteSelection(m)} style={{ flex: 1, justifyContent: 'center' }} title="Delete or Backspace">
@@ -488,7 +489,7 @@ export function FlowPlanner() {
             {(
               [
                 ['Floor plan', planDone, site.underlay ? 'Traced over your upload' : site.map ? 'The real map, to scale' : 'Optional — the Plan tool uploads one', 1],
-                ['Scale', scaleDone, scaleDone ? 'Set from a known distance' : 'Scale tool: two clicks on a known length', 2],
+                ['Scale', scaleDone, scaleDone ? (site.map ? 'The real map set it — already true size' : 'Set from a known distance') : 'Scale tool: two clicks on a known length', 2],
                 ['Walls', wallsDone, wallsDone ? `${site.walls.length} traced · height ${dim(site.wallH, units)}` : 'Trace them over the plan', 3],
                 ['Roads', site.roads.length > 0, site.roads.length ? `${site.roads.length} drawn — bends and side streets` : 'Optional — for queuing vehicles', 4],
                 ['Queue zones', site.spaces.length > 0, site.spaces.length ? `${site.spaces.length} placed` : 'Where lines will stand', 5],
@@ -587,6 +588,11 @@ export function FlowPlanner() {
         {/* view cluster, bottom-right on the canvas */}
         {isDraft && site.established && (
           <div className={s.zoom}>
+            {(site.underlay || site.map) && (
+              <button className={s.tool} style={{ background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)' }} title="Show / hide the map — trace with it, then put it away" onClick={() => draftRef.current?.toggleUnderlay()}>
+                <Glyph icon="eye" size={16} />
+              </button>
+            )}
             <button className={s.tool} style={{ background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)' }} title="Underlay opacity" onClick={() => draftRef.current?.cycleOpacity()}>
               <Glyph icon="sun" size={15} />
             </button>

@@ -64,5 +64,6 @@ export function buildScene2(m: Model): SceneV2 {
     onTool: (t) => A.setDraftTool(t),
     onRotSite: (d) => A.rotSite(m, d),
     onSelectMany: (sels) => A.selectMany(sels),
+    onMoveMany: (snap, dx, dz) => A.moveMany(m, snap, dx, dz),
   }
 }

@@ -11,6 +11,7 @@ export interface DraftCanvasHandle {
   cycleOpacity: () => void
   clearTool: () => void
   startAlign: () => void
+  toggleUnderlay: () => boolean
   pullMap: (lat: number, lon: number) => Promise<boolean>
 }
 
@@ -41,6 +42,7 @@ export function DraftCanvas({ getScene, ref }: { getScene: () => SceneV2 | null;
       cycleOpacity: () => surfRef.current?.cycleOpacity(),
       clearTool: () => surfRef.current?.clearTool(),
       startAlign: () => surfRef.current?.startAlign(),
+      toggleUnderlay: () => surfRef.current?.toggleUnderlay() ?? true,
       pullMap: (lat, lon) => surfRef.current?.pullMap(lat, lon) ?? Promise.resolve(false),
     }),
     [],

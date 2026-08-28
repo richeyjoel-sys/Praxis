@@ -5,7 +5,7 @@
 // labels, real object symbols. Reads the SceneV2 getter; writes back only
 // through its callbacks.
 
-import type { ItemV2, Road, SceneV2, SpaceV2, Wall } from '@/model/types'
+import type { ItemV2, ManySnap, Road, SceneV2, SpaceV2, Wall } from '@/model/types'
 import { distToWall } from '@/model/site2'
 
 const tok = (n: string, f: string): string =>
@@ -84,6 +84,7 @@ type Down =
   | { mode: 'size'; id: string; p: Pt; w0: number; d0: number }
   | { mode: 'rubber'; p: Pt }
   | { mode: 'marquee'; p: Pt }
+  | { mode: 'many'; p: Pt; snap: ManySnap }
 interface Pop {
   kind: 'item' | 'space' | 'wall' | 'road' | 'auto'
   id: string
@@ -277,6 +278,17 @@ export class DraftSurface {
     this.underlayOp = this.underlayOp > 0.7 ? 0.28 : this.underlayOp > 0.4 ? 0.85 : 0.5
     this.draw()
   }
+  /** The map is a traceable figure: hide it when the tracing's done, bring it
+   *  back when it's needed. Returns whether it is now shown. */
+  toggleUnderlay(): boolean {
+    if (this.underlayOp > 0) {
+      this._opWas = this.underlayOp
+      this.underlayOp = 0
+    } else this.underlayOp = this._opWas || 0.5
+    this.draw()
+    return this.underlayOp > 0
+  }
+  private _opWas = 0.5
   clearTool(): void {
     this.draft = null
     this.cal = null
@@ -496,6 +508,30 @@ export class DraftSurface {
         grab()
         return
       }
+      // a grabbed set moves as one: pointerdown on any member drags them all
+      if (s.msel?.length) {
+        const ms = new Set(s.msel.map((q) => q.kind + ':' + q.id))
+        const hitIt = this.itemAt(p.x, p.z, s)
+        const hitWl = this.wallAt(p.x, p.z, s)
+        const hitRd = this.roadAt(p.x, p.z, s)
+        const hitSp = this.spaceAt(p.x, p.z, s)
+        if (
+          (hitIt && ms.has('item:' + hitIt.id)) ||
+          (hitWl && ms.has('wall:' + hitWl.id)) ||
+          (hitRd && ms.has('road:' + hitRd.id)) ||
+          (hitSp && ms.has('space:' + hitSp.id))
+        ) {
+          const snap: ManySnap = {
+            items: s.site.items.filter((q) => ms.has('item:' + q.id)).map((q) => ({ id: q.id, x: q.x, z: q.z })),
+            walls: s.site.walls.filter((q) => ms.has('wall:' + q.id)).map((q) => ({ id: q.id, pts: q.pts.map((pt2) => [...pt2] as [number, number]) })),
+            roads: s.site.roads.filter((q) => ms.has('road:' + q.id)).map((q) => ({ id: q.id, pts: q.pts.map((pt2) => [...pt2] as [number, number]) })),
+            spaces: s.site.spaces.filter((q) => ms.has('space:' + q.id)).map((q) => ({ id: q.id, x: q.x, y: q.y })),
+          }
+          this._down = { mode: 'many', p, snap }
+          grab()
+          return
+        }
+      }
       const it = this.itemAt(p.x, p.z, s)
       if (it) {
         s.onSelect({ kind: 'item', id: it.id })
@@ -599,6 +635,8 @@ export class DraftSurface {
         this.draw()
       } else if (d.mode === 'rubber' || d.mode === 'marquee') {
         this.draw()
+      } else if (d.mode === 'many') {
+        s.onMoveMany(d.snap, this.snap(p.x - d.p.x), this.snap(p.z - d.p.z))
       } else if (d.mode === 'item') {
         d.moved = true
         s.onMoveItem(d.id, this.snap(d.x0 + (p.x - d.p.x)), this.snap(d.z0 + (p.z - d.p.z)))

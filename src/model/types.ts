@@ -413,6 +413,13 @@ export interface SiteV2 {
 }
 
 export type DraftTool = 'select' | 'wall' | 'road' | 'space' | 'cal'
+/** Where everything in a grabbed set stood when the drag began. */
+export interface ManySnap {
+  items: { id: string; x: number; z: number }[]
+  walls: { id: string; pts: [number, number][] }[]
+  roads: { id: string; pts: [number, number][] }[]
+  spaces: { id: string; x: number; y: number }[]
+}
 export interface Selection {
   kind: 'item' | 'wall' | 'road' | 'space'
   id: string
@@ -460,4 +467,5 @@ export interface SceneV2 {
   onTool: (t: DraftTool) => void // the surface can put a tool down (Esc with nothing drawing)
   onRotSite: (deltaDeg: number) => void // turn the underlay/map imagery
   onSelectMany: (sels: Selection[]) => void // a marquee's haul
+  onMoveMany: (snap: ManySnap, dx: number, dz: number) => void // drag the whole haul
 }

@@ -6,7 +6,7 @@ import { useStore } from './store'
 import type { Model } from '@/model/select'
 import type { Shift } from '@/model/library'
 import { ICON_BY, SWATCH } from '@/model/library'
-import type { Act, Dir, DraftTool, ItemV2, MapPull, PlanTool, PlanUnderlay, Road, Selection, SignType, SiteFrame, SiteV2, SpaceV2, Transport, Role, ActType, HotelMeta, EventMeta, Wall } from '@/model/types'
+import type { Act, Dir, DraftTool, ItemV2, ManySnap, MapPull, PlanTool, PlanUnderlay, Road, Selection, SignType, SiteFrame, SiteV2, SpaceV2, Transport, Role, ActType, HotelMeta, EventMeta, Wall } from '@/model/types'
 import { uid } from '@/lib/ids'
 import { blankSite } from '@/model/site2'
 
@@ -469,6 +469,32 @@ export function deleteSelection(m: Model) {
 export function clearSite2(m: Model) {
   patchSite2(m, blankSite())
   A_select(null)
+}
+/** Drag a whole grabbed set at once — positions come from the drag-start snapshot. */
+export function moveMany(m: Model, snap: ManySnap, dx: number, dz: number) {
+  const site = m.site2()
+  const it = new Map(snap.items.map((q) => [q.id, q]))
+  const wl = new Map(snap.walls.map((q) => [q.id, q]))
+  const rd = new Map(snap.roads.map((q) => [q.id, q]))
+  const sp = new Map(snap.spaces.map((q) => [q.id, q]))
+  patchSite2(m, {
+    items: site.items.map((x) => {
+      const q = it.get(x.id)
+      return q ? { ...x, x: +(q.x + dx).toFixed(2), z: +(q.z + dz).toFixed(2) } : x
+    }),
+    walls: site.walls.map((x) => {
+      const q = wl.get(x.id)
+      return q ? { ...x, pts: q.pts.map(([px, pz]) => [+(px + dx).toFixed(2), +(pz + dz).toFixed(2)] as [number, number]) } : x
+    }),
+    roads: site.roads.map((x) => {
+      const q = rd.get(x.id)
+      return q ? { ...x, pts: q.pts.map(([px, pz]) => [+(px + dx).toFixed(2), +(pz + dz).toFixed(2)] as [number, number]) } : x
+    }),
+    spaces: site.spaces.map((x) => {
+      const q = sp.get(x.id)
+      return q ? { ...x, x: +(q.x + dx).toFixed(2), y: +(q.y + dz).toFixed(2) } : x
+    }),
+  })
 }
 
 /** Populate from the builder: the day's roles, desks and signs become real

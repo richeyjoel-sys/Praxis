@@ -16,7 +16,6 @@ export function MovementRow({ x, sh, zebra }: { x: Move; sh: Shift; zebra: boole
   const mk = m.key(x)
   const open = !!m.ui.openMoves[mk]
   const act = m.actOf(x)
-  const seats = m.seatsOf(x)
   const tp = m.modeT(x)
   const live = t >= x.s - 45 && t < x.e + 30
   const iconD = (x.icon && ICON_BY[x.icon]?.d) || act.d || ''
@@ -46,16 +45,71 @@ export function MovementRow({ x, sh, zebra }: { x: Move; sh: Shift; zebra: boole
         <IconSvg d={modeD} size={15} weight={2.1} style={{ color: 'var(--color-neutral-600)', flex: 'none' }} />
         <span className={s.moveD}>{n(x.d)}</span>
         <span style={{ flex: 1 }} />
-        {!open && (
-          <button className={s.seatBtn} data-ok={seats >= x.d ? 'true' : undefined} onClick={() => A.toggleMove(mk)} title="Open the transport for this movement">
-            {seats ? `${seats} seats` : tp ? 'no seats yet' : 'on foot'}
-          </button>
-        )}
         <IconBtn onClick={() => A.dropAct(m, x)} title={x.id ? 'Delete this movement' : 'Take this group off the day — Undo brings it back'} style={{ borderWidth: 1, color: 'var(--color-neutral-600)', fontSize: 11 }}>
           ✕
         </IconBtn>
       </div>
+      <AnswerChips x={x} m={m} open={open} mk={mk} />
       {open && <Cascade x={x} sh={sh} m={m} />}
+    </div>
+  )
+}
+
+/** Every answered question becomes a little chip at the top of the movement —
+ *  the summary reads at a glance, and clicking a chip opens that very step. */
+function AnswerChips({ x, m, open, mk }: { x: Move; m: Model; open: boolean; mk: string }) {
+  const dir = m.dirOf(x)
+  const tp = m.modeT(x)
+  const nV = m.vcount(x)
+  const seats = m.seatsOf(x)
+  const sizes = m.sizes(x)
+  const wq = m.walkQueue(x)
+  const qLabel = x.q === 'kerb' ? 'Kerbside' : x.q ? m.spaces2().find((r) => r.id === x.q)?.l || null : null
+  const signs = m.signTypes().filter((st) => m.signCount(x, st) > 0)
+  const go = (i: number) => {
+    if (!open) A.toggleMove(mk)
+    A.toggleStep(mk, i, false)
+  }
+  return (
+    <div className={s.chips}>
+      <button className={s.chip} onClick={() => go(2)} title="When they go and come back">
+        {dir === 'both' ? 'Out & back' : dir === 'in' ? 'Ingress' : 'Egress'}
+      </button>
+      <button
+        className={s.chip}
+        data-ok={tp && seats >= x.d ? 'true' : undefined}
+        data-warn={tp && seats < x.d ? 'true' : undefined}
+        onClick={() => go(3)}
+        title="What moves them"
+      >
+        {tp ? (
+          <>
+            <Glyph icon={tp.icon} g={tp.g} size={11} /> {tp.l} ×{nV} · {n(seats)} seats
+          </>
+        ) : (
+          <>
+            <Glyph icon="walk" size={11} /> On foot{wq ? ' · queues' : ''}
+          </>
+        )}
+      </button>
+      {sizes.length > 1 && (
+        <button className={s.chip} onClick={() => go(4)} title="How they split">
+          {sizes.length} groups of ~{m.gsize(x)}
+        </button>
+      )}
+      {qLabel && (
+        <button className={s.chip} onClick={() => go(5)} title="Where they queue">
+          Queue: {qLabel}
+        </button>
+      )}
+      {signs.map((st) => (
+        <button key={st.id} className={s.chip} onClick={() => go(6)} title={st.l}>
+          <span className={s.chipG} style={{ background: st.hex }}>
+            <Glyph icon={st.icon} size={9} />
+          </span>
+          {m.signCount(x, st)} {st.l.toLowerCase()}
+        </button>
+      ))}
     </div>
   )
 }
