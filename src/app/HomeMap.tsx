@@ -86,10 +86,11 @@ export function HomeMap({
     if (!el) return
     const map = L.map(el, { zoomControl: false, center: [32.727, -117.168], zoom: 13 })
     L.control.zoom({ position: 'bottomleft' }).addTo(map)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // OpenStreetMap's own tiles — no API key, same source the planner's
+    // "Pull the real map" uses. (CARTO's basemaps began requiring a key.)
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map)
     const leaders = { current: L.layerGroup().addTo(map) as L.LayerGroup | null }
     const pins: Pin[] = []
