@@ -445,7 +445,6 @@ export interface SceneV2 {
   msel: Selection[] | null // several things grabbed at once
   level: number
   hotelGeo: HotelGeo | null
-  frontage: boolean // this hotel has REAL kerb/bay data (the seed); others draw their own roads
   // callbacks — every one dispatches a named action
   onSelect: (sel: Selection | null) => void
   onMoveItem: (id: string, x: number, z: number) => void

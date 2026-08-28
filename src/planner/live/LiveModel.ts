@@ -436,7 +436,7 @@ export class LiveModel {
   }
 
   // ---------- static model ----------
-  private build(geo: SimGeo, walls: Wall[], spaces: SpaceV2[], wallH: number, roads: Road[], frontage: boolean, uRot: number): void {
+  private build(geo: SimGeo, walls: Wall[], spaces: SpaceV2[], wallH: number, roads: Road[], uRot: number): void {
     const g = this.statics
     const c = C()
     while (g.children.length) {
@@ -448,19 +448,6 @@ export class LiveModel {
     this._wallH = wallH
     const W = geo.buildW
     const D = geo.buildD
-    const add = <T extends THREE.Mesh>(mesh: T, cast?: boolean, recv?: boolean): T => {
-      mesh.castShadow = !!cast
-      mesh.receiveShadow = recv !== false
-      g.add(mesh)
-      return mesh
-    }
-    const box = (w: number, h: number, d: number, mat: THREE.MeshStandardMaterial,
-                 x: number, y: number, z: number, name?: string): StdMesh => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
-      m.position.set(x, y + h / 2, z)
-      m.name = name || ''
-      return m
-    }
     const mat: StaticMats = {
       ground: M(c.ground, 0.95), paving: M(c.paving, 0.9),
       wall: M(c.wall, 0.82), wallTop: M(c.wallTop, 0.8), carpet: M(c.carpet, 0.96),
@@ -477,22 +464,8 @@ export class LiveModel {
     gp.position.set(W / 2, -0.02, D / 2)
     gp.receiveShadow = true
     g.add(gp)
-    // the built-in street, kerb and coach bays exist only where Praxis has
-    // REAL frontage data (the seed) — everywhere else the planner's own
-    // drawn roads are the only roads
-    if (frontage) {
-      add(box(W + 260, 0.1, geo.streetDepth, mat.asphalt, W / 2, 0, geo.streetY + geo.streetDepth / 2))
-      for (let x = -110; x < W + 130; x += 6)
-        add(box(3, 0.02, 0.22, mat.line, x, 0.1, geo.streetY + geo.streetDepth / 2), false, false)
-      add(box(W + 40, 0.16, geo.kerbDepth, mat.paving, W / 2, 0, geo.kerbY + geo.kerbDepth / 2))
-      add(box(W + 40, 0.06, 0.34, mat.wallTop, W / 2, 0.16, geo.kerbY + geo.kerbDepth - 0.17))
-      ;(geo.bays || []).forEach((bx) => {
-        add(box(0.16, 0.02, geo.kerbDepth * 0.66, mat.line, bx - 6.9, 0.16, geo.kerbY + geo.kerbDepth * 0.6),
-            false, false)
-        add(box(0.16, 0.02, geo.kerbDepth * 0.66, mat.line, bx + 6.9, 0.16, geo.kerbY + geo.kerbDepth * 0.6),
-            false, false)
-      })
-    }
+    // no invented frontage: streets, kerbs and bays exist only as the roads
+    // and zones the planner drew
 
     // drawn roads: asphalt ribbons wherever the planner bent them — one shallow
     // box per segment plus a disc at each bend so corners read as paved, with a
@@ -600,21 +573,6 @@ export class LiveModel {
       this.spaceMeshes.push(fl)
     })
 
-    // street trees, for scale and life — only along a real street
-    for (let i = 0; i < (frontage ? 14 : 0); i++) {
-      const x = -22 + i * ((W + 46) / 13)
-      const z = geo.streetY - 1.4
-      add(box(0.34, 2.3, 0.34, mat.trunk, x, 0.1, z), true)
-      const cr = new THREE.Mesh(new THREE.SphereGeometry(1.5, 14, 10), mat.leaf)
-      cr.position.set(x, 3.5, z)
-      cr.castShadow = true
-      g.add(cr)
-      const sh = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 4.2),
-        new THREE.MeshBasicMaterial({ map: this.blob, transparent: true, depthWrite: false }))
-      sh.rotation.x = -Math.PI / 2
-      sh.position.set(x, 0.12, z)
-      g.add(sh)
-    }
     this.sizeShadow(W, D, geo)
   }
   private sizeShadow(W: number, D: number, geo: SimGeo): void {
@@ -893,14 +851,14 @@ export class LiveModel {
     const spaces = s.site.spaces.filter((sp) => (sp.lvl || 0) === lv)
     const sig = JSON.stringify([s.hotelName, lv, geo.buildW, geo.buildD, geo.kerbY, geo.kerbDepth,
       geo.streetY, geo.streetDepth, geo.bays, s.site.wallH, s.site.walls, s.site.roads,
-      s.frontage, s.site.rot || 0, spaces.map((sp) => [sp.id, sp.x, sp.y, sp.w, sp.d])])
+      s.site.rot || 0, spaces.map((sp) => [sp.id, sp.x, sp.y, sp.w, sp.d])])
     const under = s.site.underlay ? s.site.underlay.src : null
     if (under !== this._under) { this._under = under || null; this._sig = null }
     if (sig !== this._sig) {
       this._sig = sig
       this.geo = geo
       this.spaces = spaces
-      this.build(geo, s.site.walls, spaces, s.site.wallH, s.site.roads, s.frontage, s.site.rot || 0)
+      this.build(geo, s.site.walls, spaces, s.site.wallH, s.site.roads, s.site.rot || 0)
       this.pools()
       if (this._mode === 'live') this.frame(true)
     }

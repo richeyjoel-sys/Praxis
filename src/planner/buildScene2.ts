@@ -6,7 +6,6 @@
 import type { Model } from '@/model/select'
 import type { SceneV2 } from '@/model/types'
 import { GEO } from '@/data/geo'
-import { SEED } from '@/model/scene'
 import * as A from '@/state/actions'
 
 export function buildScene2(m: Model): SceneV2 {
@@ -39,7 +38,6 @@ export function buildScene2(m: Model): SceneV2 {
     msel: ui.msel,
     level: m.lvl(),
     hotelGeo: GEO[hotel?.name || ''] || null,
-    frontage: !!SEED[hotel?.name || ''],
 
     onSelect: (sel) => A.select(sel),
     onMoveItem: (id, x, z) => A.moveItem2(m, id, x, z),

@@ -868,32 +868,8 @@ export class DraftSurface {
         preserveAspectRatio="none"${rot ? ` transform="rotate(${rot.toFixed(2)} ${rcx.toFixed(1)} ${rcy.toFixed(1)})"` : ''}/>`)
     }
 
-    // the public road and kerb exist only where Praxis has REAL frontage data
-    // (the seed). Everywhere else the planner draws their own roads — nothing
-    // invented ever influences the drawing.
-    if (s.frontage) {
-      const kerbY = f.d + 1
-      const streetY = kerbY + f.kerb + 0.6
-      out.push(`<rect x="${X(-60)}" y="${Y(streetY)}" width="${((f.w + 120) * K).toFixed(1)}"
-        height="${(f.street * K).toFixed(1)}" fill="#57534c" fill-opacity=".16"
-        stroke="${c.ink}" stroke-width="1" stroke-opacity=".35"/>`)
-      const cl = streetY + f.street / 2
-      out.push(`<line x1="${X(-60)}" y1="${Y(cl)}" x2="${X(f.w + 60)}" y2="${Y(cl)}"
-        stroke="#c9a227" stroke-width="1.6" stroke-dasharray="${(2.4 * K).toFixed(1)} ${(2 * K).toFixed(1)}"/>`)
-      out.push(`<rect x="${X(0)}" y="${Y(kerbY)}" width="${(f.w * K).toFixed(1)}"
-        height="${(f.kerb * K).toFixed(1)}" fill="url(#dpav)" stroke="${c.ink}"
-        stroke-width="1.1" stroke-opacity=".5"/>`)
-      out.push(`<line x1="${X(0)}" y1="${Y(kerbY + f.kerb)}" x2="${X(f.w)}" y2="${Y(kerbY + f.kerb)}"
-        stroke="${c.ink}" stroke-width="2.4"/>`)
-      s.plan.geo.bays.forEach((bx, i) => {
-        out.push(`<g stroke="#ffffff" stroke-width="2" stroke-opacity=".85">
-          <line x1="${X(bx - 6.9)}" y1="${Y(kerbY + 0.4)}" x2="${X(bx - 6.9)}" y2="${Y(kerbY + f.kerb - 0.4)}"/>
-          <line x1="${X(bx + 6.9)}" y1="${Y(kerbY + 0.4)}" x2="${X(bx + 6.9)}" y2="${Y(kerbY + f.kerb - 0.4)}"/></g>`)
-        if (K > 5)
-          out.push(`<text x="${X(bx)}" y="${Y(kerbY + f.kerb * 0.55)}" text-anchor="middle"
-            font-size="${Math.min(15, 1.4 * K)}" font-weight="700" fill="${c.ink}" fill-opacity=".5">BAY ${i + 1}</text>`)
-      })
-    }
+    // no invented frontage anywhere: kerbs, bays and streets exist only when
+    // the planner draws them as roads and zones
 
     // several things grabbed at once — the marquee's haul highlights everywhere
     const MS = new Set((s.msel || []).map((q) => q.kind + ':' + q.id))
