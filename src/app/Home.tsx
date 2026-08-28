@@ -67,6 +67,9 @@ export function Home() {
             Terracotta is a confirmed position, sage an approximate one — {approx} addresses still to confirm.
             Markers separate when they would collide; the dashed leader points at the true spot.
           </div>
+          <div className={s.legendText} style={{ marginTop: 8, opacity: 0.7 }}>
+            Build {typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'}
+          </div>
         </div>
       </div>
       <HomeMap hotels={hotels} geo={GEO} onPick={A.goHotel} />

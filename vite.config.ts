@@ -2,12 +2,24 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
+import { execSync } from 'node:child_process'
+
+// The build stamp: git commit + date, shown on the Home screen so anyone can
+// tell at a glance whether a deployed site is serving the latest push.
+const stamp = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim() + ' · ' + new Date().toISOString().slice(0, 10)
+  } catch {
+    return 'dev'
+  }
+})()
 
 // Praxis — Vite build.
 // The service worker is network-first for the app shell and its data
 // (see the prototype's sw.js): stale builds during review rounds were a real
 // defect class, so the cache is an offline fallback only, never the source.
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(stamp) },
   plugins: [
     react(),
     VitePWA({
